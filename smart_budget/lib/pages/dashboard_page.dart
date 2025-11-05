@@ -6,26 +6,17 @@ class DashboardPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Finora Dashboard')),
+      appBar: AppBar(title: const Text("SmartBudget Dashboard")),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text('Welcome to Finora!',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () => Navigator.pushNamed(context, '/add'),
-              child: const Text('Add Transaction'),
+          children: const [
+            Text(
+              "Welcome to SmartBudget 💸",
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-            ElevatedButton(
-              onPressed: () => Navigator.pushNamed(context, '/stats'),
-              child: const Text('View Statistics'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pushNamed(context, '/advice'),
-              child: const Text('AI Advice Assistant'),
-            ),
+            SizedBox(height: 10),
+            Text("Use the bottom menu to navigate between pages."),
           ],
         ),
       ),
