@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'transaction.dart';
+import 'package:finora/models/transaction_model.dart';
 
 class AddTransactionPage extends StatefulWidget {
   const AddTransactionPage({super.key});

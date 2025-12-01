@@ -22,7 +22,7 @@ dependencies:
   fl_chart: ^0.60.0
 
   # Speech-to-text
-  speech_to_text: ^5.7.0
+  speech_to_text: 7.3.0
 
   # Notifications
   flutter_local_notifications: ^12.0.4
