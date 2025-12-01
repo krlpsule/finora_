@@ -6,6 +6,7 @@ import 'services/firestore_service.dart';
 import 'services/notification_service.dart';
 import 'services/speech_service.dart';
 import 'services/ai_service.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 // TODO: Add your Firebase options or configure with google-services files.
 void main() async {
