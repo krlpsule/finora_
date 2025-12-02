@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "240290986230",
+    "project_id": "finora-app-66138",
+    "storage_bucket": "finora-app-66138.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:240290986230:android:dc5bd898225167555794d7",
+        "android_client_info": {
+          "package_name": "com.example.smart_budget"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD4pE1X4PF1BbpVJS58-pww3i46CmGWF1Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
