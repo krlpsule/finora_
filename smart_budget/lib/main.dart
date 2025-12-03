@@ -1,42 +1,63 @@
+// lib/main.dart (Nihai Versiyon)
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'screens/dashboard.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // Yüklü
+import 'package:flutter_bloc/flutter_bloc.dart'; // Yüklü
+import 'screens/main_screen.dart'; // Yüklü
 import 'services/firestore_service.dart';
 import 'services/notification_service.dart';
 import 'services/speech_service.dart';
 import 'services/ai_service.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter_bloc/flutter_bloc.dart'; // BLoC paketi
 import 'features/transaction/transaction_bloc.dart';
 import 'features/transaction/transaction_event.dart';
-import 'screens/main_screen.dart';
 
-// TODO: Add your Firebase options or configure with google-services files.
+// ---------------------------------------------
+// KRİTİK DÜZELTME: Servislerin doğru sırayla başlatılması
+// ---------------------------------------------
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // 1. DOTENV YÜKLEME (AI Servisi için hayati)
+  // Bu, AIService constructor'ı çağrılmadan önce anahtarı kullanılabilir yapar.
+  try {
+    await dotenv.load(fileName: ".env"); 
+  } catch (e) {
+    // Eğer .env dosyası bulunamazsa bile uygulamayı durdurmayalım
+    print("Warning: Failed to load .env file: $e");
+  }
+
+  // 2. FIREBASE BAŞLATMA
   await Firebase.initializeApp();
-  await NotificationService().init();
-  runApp(FinoraApp());
+  
+  // 3. SERVİS İLK BAŞLATMALARI (Bildirimler)
+  // Arkadaşınız bu kısmı tamamlayacaktır. Şimdilik sadece init çağrısı kalsın.
+  await NotificationService().init(); 
+  
+  runApp(const FinoraApp()); // runApp çağrılırken, FinoraApp içinde Provider'lar kurulur.
 }
 
 class FinoraApp extends StatelessWidget {
+  const FinoraApp({super.key}); // const constructor eklendi
+  
   @override
   Widget build(BuildContext context) {
+    // MultiBlocProvider, tüm servisleri ve BLoC'ları sağlar.
     return MultiBlocProvider(
       providers: [
-        // 1. Transaction BLoC'u ekle
+        // BLoC'lar
         BlocProvider<TransactionBloc>(
-          // TransactionBloc'u oluşturur ve cascade operator (..) kullanarak hemen LoadTransactions event'ini gönderir.
-          // Burada noktalı virgül (;) veya return keyword'ü gerekmez.
           create: (context) =>
               TransactionBloc(FirestoreService())..add(LoadTransactions()),
         ),
 
-        // 2. Diğer servisler için normal Provider'ları koru (BLoC'a çevrilmeyeceklerse)
+        // Diğer Servisler (AIService dahil)
+        // AIService çağrısı, dotenv yüklendiği için artık güvenlidir.
+        Provider<AIService>(create: (_) => AIService()), 
         Provider<SpeechService>(create: (_) => SpeechService()),
-        Provider<AIService>(create: (_) => AIService()),
         Provider<NotificationService>(create: (_) => NotificationService()),
+        Provider<FirestoreService>(create: (_) => FirestoreService()), // Gerekirse
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -44,8 +65,9 @@ class FinoraApp extends StatelessWidget {
         theme: ThemeData(
           primarySwatch: Colors.indigo,
           scaffoldBackgroundColor: Colors.grey[50],
+          useMaterial3: true,
         ),
-        home: MainScreen(),
+        home: const MainScreen(),
       ),
     );
   }

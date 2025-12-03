@@ -3,8 +3,23 @@
 import 'package:flutter/material.dart';
 import 'dashboard.dart';
 import 'charts.dart';
-import 'history.dart'; // Boş bir dosya oluşturun
-import 'ai_assistant.dart'; // Boş bir dosya oluşturun
+import 'history.dart';
+import 'ai_assistant.dart';
+import 'add_transaction.dart'; // İşlem ekleme ekranı
+
+// --- Placeholder/Diğer Sayfaların Const Tanımlamaları (Çalışma Garantisi için) ---
+// Not: Bu sınıflar kendi dosyalarından (history.dart, ai_assistant.dart) geliyorsa,
+// buraya sadece import yeterlidir.
+class HistoryPage extends StatelessWidget {
+  const HistoryPage({super.key});
+  @override
+  Widget build(BuildContext context) {
+    // MainScreen'de AppBar yönetildiği için burada sadece Center kullanıyoruz.
+    return const Center(child: Text('Transaction History Coming Soon'));
+  }
+}
+
+// -----------------------------------------------------------------------------------
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -16,31 +31,62 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  final List<Widget> _pages = [
-    const DashboardPage(),
-    const ChartsPage(),
-    const HistoryPage(), // Boş oluşturun
-    const AIAssistantPage(), // Boş oluşturun
+  // PRD'deki tüm ana ekranları içeren liste
+  final List<Widget> _pages = const [
+    DashboardPage(),
+    ChartsPage(),
+    HistoryPage(),
+    AIAssistantPage(),
   ];
 
+  // Sekme değişimini yönetir
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
     });
   }
 
+  // İşlem Ekleme Ekranını açma metodu
+  void _openAddTransactionScreen() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (ctx) => const AddTransactionPage()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Seçili sekmeye göre başlık listesi
+    final List<String> titles = [
+      'Finora Dashboard',
+      'Financial Charts',
+      'Transaction History',
+      'AI Assistant'
+    ];
+
     return Scaffold(
-      // AppBar ve FloatingActionButton, alt sayfalara taşınacaksa buradan kaldırılabilir.
-      // Şimdilik sadece sayfa içeriğini döndürüyoruz.
+      // PRD 7.1'e uygun tek AppBar, sekmeler arasında başlığı değiştirir
+      appBar: AppBar(
+        title: Text(titles[_selectedIndex]),
+        elevation: 0,
+      ),
+
+      // Gösterilen sayfa
       body: _pages[_selectedIndex],
-      
-      // Alt Gezinti Çubuğu
+
+      // Floating Action Button (İşlem Ekleme)
+      floatingActionButton: FloatingActionButton(
+        onPressed: _openAddTransactionScreen,
+        child: const Icon(Icons.add),
+      ),
+      // FAB'ı Bottom Navigasyonun ortasına yerleştirme (UX gereksinimi)
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+
+      // Alt Gezinti Çubuğu (BottomNavigationBar)
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Dashboard'),
           BottomNavigationBarItem(icon: Icon(Icons.pie_chart), label: 'Charts'),
+          // FAB için boşluk bırakılır
           BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
           BottomNavigationBarItem(icon: Icon(Icons.psychology), label: 'AI'),
         ],
@@ -48,26 +94,8 @@ class _MainScreenState extends State<MainScreen> {
         selectedItemColor: Theme.of(context).primaryColor,
         unselectedItemColor: Colors.grey,
         onTap: _onItemTapped,
-        type: BottomNavigationBarType.fixed, // 4-5 item için sabit tip daha iyidir
+        type: BottomNavigationBarType.fixed, // Tüm öğelerin görünmesini sağlar
       ),
     );
-  }
-}
-
-// HistoryPage ve AIAssistantPage için basit placeholder'lar (Eğer henüz kodlamadıysanız)
-class HistoryPage extends StatelessWidget {
-  const HistoryPage({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(appBar: AppBar(title: Text('Transaction History')), body: Center(child: Text('History List Coming Soon')));
-  }
-}
-
-// AIAssistantPage için basit placeholder
-class AIAssistantPage extends StatelessWidget {
-  const AIAssistantPage({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(appBar: AppBar(title: Text('AI Assistant')), body: Center(child: Text('AI Chat Coming Soon')));
   }
 }
