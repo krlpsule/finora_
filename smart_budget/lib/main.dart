@@ -7,6 +7,10 @@ import 'services/notification_service.dart';
 import 'services/speech_service.dart';
 import 'services/ai_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_bloc/flutter_bloc.dart'; // BLoC paketi
+import 'features/transaction/transaction_bloc.dart';
+import 'features/transaction/transaction_event.dart';
+import 'screens/main_screen.dart';
 
 // TODO: Add your Firebase options or configure with google-services files.
 void main() async {
@@ -19,9 +23,17 @@ void main() async {
 class FinoraApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
+    return MultiBlocProvider(
       providers: [
-        Provider<FirestoreService>(create: (_) => FirestoreService()),
+        // 1. Transaction BLoC'u ekle
+        BlocProvider<TransactionBloc>(
+          // TransactionBloc'u oluşturur ve cascade operator (..) kullanarak hemen LoadTransactions event'ini gönderir.
+          // Burada noktalı virgül (;) veya return keyword'ü gerekmez.
+          create: (context) =>
+              TransactionBloc(FirestoreService())..add(LoadTransactions()),
+        ),
+
+        // 2. Diğer servisler için normal Provider'ları koru (BLoC'a çevrilmeyeceklerse)
         Provider<SpeechService>(create: (_) => SpeechService()),
         Provider<AIService>(create: (_) => AIService()),
         Provider<NotificationService>(create: (_) => NotificationService()),
@@ -33,7 +45,7 @@ class FinoraApp extends StatelessWidget {
           primarySwatch: Colors.indigo,
           scaffoldBackgroundColor: Colors.grey[50],
         ),
-        home: DashboardPage(),
+        home: MainScreen(),
       ),
     );
   }

@@ -1,18 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TransactionModel {
-  String id;
+  String? id;
   double amount;
   String category;
-  String note;
+  String? note;
   DateTime date;
   bool isIncome;
 
   TransactionModel({
-    required this.id,
+     this.id,
     required this.amount,
     required this.category,
-    required this.note,
+     this.note,
     required this.date,
     this.isIncome = false,
   });

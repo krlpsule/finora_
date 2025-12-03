@@ -1,148 +1,152 @@
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../models/transaction_model.dart';
-import '../services/firestore_service.dart';
-import '../services/speech_service.dart';
+// lib/screens/add_transaction.dart
 
-class AddTransactionScreen extends StatefulWidget {
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../features/transaction/transaction_bloc.dart';
+import '../features/transaction/transaction_event.dart';
+import '../models/transaction_model.dart';
+
+class AddTransactionPage extends StatefulWidget {
+  // Düzenleme (Edit) modunda kullanmak için (PRD 5.4)
   final TransactionModel? editTx;
-  AddTransactionScreen({this.editTx});
+
+  const AddTransactionPage({super.key, this.editTx});
 
   @override
-  State<AddTransactionScreen> createState() => _AddTransactionScreenState();
+  State<AddTransactionPage> createState() => _AddTransactionPageState();
 }
 
-class _AddTransactionScreenState extends State<AddTransactionScreen> {
+class _AddTransactionPageState extends State<AddTransactionPage> {
   final _formKey = GlobalKey<FormState>();
+
+  // Kontrolcüler (Controllers)
   final _amountCtrl = TextEditingController();
   final _categoryCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
-  DateTime _date = DateTime.now();
-  bool _isIncome = false;
-  bool _listening = false;
 
-  @override
-  void initState() {
-    super.initState();
-    if (widget.editTx != null) {
-      final e = widget.editTx!;
-      _amountCtrl.text = e.amount.toString();
-      _categoryCtrl.text = e.category;
-      _noteCtrl.text = e.note;
-      _date = e.date;
-      _isIncome = e.isIncome;
+  // İşlem Tipi (Varsayılan Gider: False = isIncome, True = isExpense)
+  bool _isIncome = false;
+
+  // Formu Gönderme Metodu
+  void _submitForm() {
+    if (_formKey.currentState!.validate()) {
+      // 1. Yeni TransactionModel nesnesini oluştur
+      final newTransaction = TransactionModel(
+        id: widget.editTx?.id, // Eğer düzenleme yapılıyorsa ID'yi kullan
+        amount: double.parse(_amountCtrl.text),
+        category: _categoryCtrl.text,
+        note: _noteCtrl.text,
+        date: DateTime.now(), // Şu anki tarih
+        isIncome: _isIncome,
+      );
+
+      // 2. BLoC'a erişim sağla ve Event'i gönder
+      final bloc = BlocProvider.of<TransactionBloc>(context);
+
+      if (widget.editTx == null) {
+        // Yeni işlem ekleme
+        bloc.add(AddTransactionEvent(newTransaction));
+      } else {
+        // Mevcut işlemi düzenleme
+        bloc.add(UpdateTransactionEvent(newTransaction));
+      }
+
+      // 3. Formu kapat ve ana sayfaya dön
+      Navigator.pop(context);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final fs = Provider.of<FirestoreService>(context, listen: false);
-    final speech = Provider.of<SpeechService>(context, listen: false);
-
     return Scaffold(
-      appBar: AppBar(title: Text(widget.editTx == null ? 'Add Transaction' : 'Edit Transaction')),
-      body: Padding(
-        padding: EdgeInsets.all(12),
+      appBar: AppBar(
+        title: Text(
+            widget.editTx == null ? 'New Transaction' : 'Edit Transaction'),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
-          child: ListView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextFormField(
-                controller: _amountCtrl,
-                keyboardType: TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(labelText: 'Amount (₺)'),
-                validator: (v) => v == null || v.isEmpty ? 'Enter amount' : null,
-              ),
-              SizedBox(height: 8),
-              TextFormField(
-                controller: _categoryCtrl,
-                decoration: InputDecoration(labelText: 'Category'),
-                validator: (v) => v == null || v.isEmpty ? 'Enter category' : null,
-              ),
-              SizedBox(height: 8),
-              TextFormField(
-                controller: _noteCtrl,
-                decoration: InputDecoration(labelText: 'Note'),
-              ),
-              SizedBox(height: 12),
+              // --- 1. İşlem Tipi Seçimi ---
               Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('Date: ${_date.toLocal().toString().split(' ')[0]}'),
-                  Spacer(),
-                  TextButton(onPressed: _pickDate, child: Text('Change'))
-                ],
-              ),
-              SwitchListTile(
-                title: Text('Is Income'),
-                value: _isIncome,
-                onChanged: (v) => setState(() => _isIncome = v),
-              ),
-              SizedBox(height: 12),
-              Row(
-                children: [
-                  ElevatedButton.icon(
-                    icon: Icon(Icons.mic),
-                    label: Text(_listening ? 'Stop Listen' : 'Voice Input'),
-                    onPressed: () async {
-                      if (!_listening) {
-                        final ok = await speech.init();
-                        if (!ok) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Speech not available')));
-                          return;
-                        }
-                        setState(() => _listening = true);
-                        speech.startListening((text) {
-                          // very simple parsing: "spent 50 on food" -> amount/category
-                          setState(() {
-                            _noteCtrl.text = text;
-                          });
-                        });
-                      } else {
-                        speech.stopListening();
-                        setState(() => _listening = false);
-                      }
+                  Text('Expense'),
+                  Switch(
+                    value: _isIncome,
+                    onChanged: (val) {
+                      setState(() {
+                        _isIncome = val; // True ise Gelir, False ise Gider
+                      });
                     },
                   ),
-                  SizedBox(width: 12),
-                  ElevatedButton.icon(
-                    icon: Icon(Icons.check),
-                    label: Text('Save'),
-                    onPressed: () async {
-                      if (!_formKey.currentState!.validate()) return;
-                      final tx = TransactionModel(
-                        id: widget.editTx?.id ?? '',
-                        amount: double.tryParse(_amountCtrl.text) ?? 0,
-                        category: _categoryCtrl.text,
-                        note: _noteCtrl.text,
-                        date: _date,
-                        isIncome: _isIncome,
-                      );
-                      if (widget.editTx == null) {
-                        await fs.addTransaction(tx);
-                      } else {
-                        await fs.updateTransaction(TransactionModel(
-                          id: widget.editTx!.id,
-                          amount: tx.amount,
-                          category: tx.category,
-                          note: tx.note,
-                          date: tx.date,
-                          isIncome: tx.isIncome,
-                        ));
-                      }
-                      Navigator.pop(context);
-                    },
-                  )
+                  Text('Income'),
                 ],
-              )
+              ),
+              const SizedBox(height: 20),
+
+              // --- 2. Tutar Girişi ---
+              TextFormField(
+                controller: _amountCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Amount',
+                  border: OutlineInputBorder(),
+                  prefixText: '₺',
+                ),
+                validator: (value) {
+                  if (value == null ||
+                      value.isEmpty ||
+                      double.tryParse(value) == null) {
+                    return 'Please enter a valid amount.';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // --- 3. Kategori Girişi ---
+              TextFormField(
+                controller: _categoryCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Category (e.g., Food, Salary)',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Category cannot be empty.';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // --- 4. Not Girişi ---
+              TextFormField(
+                controller: _noteCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Note (Optional)',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 24),
+
+              // --- 5. Kaydet Butonu ---
+              ElevatedButton(
+                onPressed: _submitForm,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: Text(widget.editTx == null ? 'SAVE' : 'EDİT'),
+              ),
             ],
           ),
         ),
       ),
     );
-  }
-
-  void _pickDate() async {
-    final d = await showDatePicker(context: context, initialDate: _date, firstDate: DateTime(2000), lastDate: DateTime(2100));
-    if (d != null) setState(() => _date = d);
   }
 }

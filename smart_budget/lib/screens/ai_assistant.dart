@@ -1,61 +1,118 @@
+// lib/screens/ai_assistant.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/ai_service.dart';
-import '../services/firestore_service.dart';
-import '../models/transaction_model.dart';
 
-class AIAssistantScreen extends StatefulWidget {
+class AIAssistantPage extends StatefulWidget {
+  const AIAssistantPage({super.key});
+
   @override
-  State<AIAssistantScreen> createState() => _AIAssistantScreenState();
+  State<AIAssistantPage> createState() => _AIAssistantPageState();
 }
 
-class _AIAssistantScreenState extends State<AIAssistantScreen> {
-  final _controller = TextEditingController();
-  final List<Map<String, String>> _messages = [];
+class _AIAssistantPageState extends State<AIAssistantPage> {
+  final TextEditingController _controller = TextEditingController();
+  final List<String> _messages = [];
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _messages.add(
+        "Finora Assistant: Hello! How can I help you manage your finances today?");
+  }
+
+  void _sendMessage() async {
+    final query = _controller.text.trim();
+    if (query.isEmpty) return;
+
+    // Kullanıcı mesajını ekle
+    setState(() {
+      _messages.add("You: $query");
+      _controller.clear();
+      _isLoading = true;
+    });
+
+    try {
+      final aiService = Provider.of<AIService>(context, listen: false);
+      final response = await aiService.getResponse(query);
+
+      // AI yanıtını ekle
+      setState(() {
+        _messages.add("Finora Assistant: $response");
+      });
+    } catch (e) {
+      setState(() {
+        _messages.add(
+            "Finora Assistant: An error occurred while fetching the response.");
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final ai = Provider.of<AIService>(context, listen: false);
-    final fs = Provider.of<FirestoreService>(context, listen: false);
-
     return Scaffold(
-      appBar: AppBar(title: Text('AI Assistant')),
+      appBar: AppBar(title: const Text('AI Assistant')),
       body: Column(
         children: [
+          // 1. Mesaj Listesi (Chat Geçmişi)
           Expanded(
-            child: ListView(
-              children: _messages.map((m) => ListTile(
-                title: Align(
-                  alignment: m['role'] == 'user' ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    padding: EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: m['role'] == 'user' ? Colors.indigo[50] : Colors.grey[200], borderRadius: BorderRadius.circular(8)),
-                    child: Text(m['text']!),
-                  ),
-                ),
-              )).toList(),
+            child: ListView.builder(
+              reverse: true,
+              padding: const EdgeInsets.all(12),
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
+                final message = _messages[_messages.length - 1 - index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: Text(message,
+                      style: TextStyle(
+                        fontWeight: message.startsWith("You:")
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        color: message.startsWith("You:")
+                            ? Colors.blueGrey.shade800
+                            : Colors.indigo.shade800,
+                      )),
+                );
+              },
             ),
           ),
-          Divider(),
+
+          // 2. Yükleniyor Göstergesi
+          if (_isLoading)
+            const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: LinearProgressIndicator(),
+            ),
+
+          // 3. Giriş Alanı
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            padding: const EdgeInsets.all(8.0),
             child: Row(
               children: [
-                Expanded(child: TextField(controller: _controller, decoration: InputDecoration(hintText: 'Ask something...'))),
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    decoration: const InputDecoration(
+                      hintText: 'Ask about your finances...',
+                      border: OutlineInputBorder(),
+                    ),
+                    onSubmitted: (_) => _sendMessage(),
+                  ),
+                ),
                 IconButton(
-                  icon: Icon(Icons.send),
-                  onPressed: () async {
-                    final txt = _controller.text.trim();
-                    if (txt.isEmpty) return;
-                    setState(() => _messages.add({'role': 'user', 'text': txt}));
-                    _controller.clear();
-                    final response = await ai.askAssistant(txt);
-                    setState(() => _messages.add({'role': 'assistant', 'text': response}));
-                  },
-                )
+                  icon: const Icon(Icons.send),
+                  onPressed: _isLoading ? null : _sendMessage,
+                ),
               ],
             ),
-          )
+          ),
         ],
       ),
     );

@@ -1,60 +1,41 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+// lib/services/ai_service.dart
+
 import 'package:google_generative_ai/google_generative_ai.dart';
-
-class GeminiService {
-  late final GenerativeModel _model;
-
-  GeminiService() {
-    final apiKey = dotenv.env["GEMINI_API_KEY"];
-
-    _model = GenerativeModel(
-      model: 'gemini-1.5-flash',
-      apiKey: apiKey!,
-    );
-  }
-
-  Future<String> generateResponse(String prompt) async {
-    final response = await _model.generateContent([Content.text(prompt)]);
-    return response.text ?? "Bir cevap üretilemedi.";
-  }
-}
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AIService {
-  // TODO: Kendi OpenAI/Gemini API anahtarını buraya veya env değişkenine koy.
-  final String _apiKey = 'YOUR_OPENAI_API_KEY';
-  final String _endpoint = 'https://api.openai.com/v1/chat/completions';
+  late final GenerativeModel _model;
 
-  Future<String> askAssistant(String prompt) async {
-    final body = {
-      "model": "gpt-4o-mini", // placeholder; servis ve model isteğe bağlı
-      "messages": [
-        {
-          "role": "system",
-          "content": "You are Finora assistant: concise, helpful, friendly."
-        },
-        {"role": "user", "content": prompt},
-      ],
-      "max_tokens": 300,
-      "temperature": 0.7
-    };
+  // AIService Constructor'ı
+  AIService() {
+    // API anahtarını .env dosyasından okuma (main.dart'ta yüklenmişti)
+    final apiKey = dotenv.env["GEMINI_API_KEY"];
+    
+    if (apiKey == null) {
+      // API anahtarı yoksa uygulama başlatılırken hata fırlat
+      throw Exception("GEMINI_API_KEY .env dosyasında bulunamadı.");
+    }
 
-    final res = await http.post(
-      Uri.parse(_endpoint),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $_apiKey',
-      },
-      body: jsonEncode(body),
+    // PRD'ye uygun modeli başlatma (gemini-2.5-flash)
+    _model = GenerativeModel(
+      model: 'gemini-2.5-flash', // Hızlı ve sohbet tabanlı görevler için
+      apiKey: apiKey,
     );
+  }
 
-    if (res.statusCode == 200) {
-      final j = jsonDecode(res.body);
-      final text = j['choices'][0]['message']['content'];
-      return text ?? 'Üzgünüm, cevap alınamadı.';
-    } else {
-      return 'AI servisine erişilemiyor: ${res.statusCode}';
+  // PRD R5.1.3: Kullanıcının doğal dil sorgularını işleyen temel metot
+  Future<String> getResponse(String userQuery) async {
+    try {
+      final content = [Content.text(userQuery)];
+      final response = await _model.generateContent(content);
+      
+      // Yanıtın sadece metin kısmını döndür
+      return response.text ?? "I couldn't analyze your question. Please try again.";
+    } catch (e) {
+      print('AI Service Error: $e');
+      return "Failed to connect to the AI service. Please check your API key.";
     }
   }
+
+  // İleride, finansal veriyi analiz etmek için ek metotlar buraya eklenecek.
 }

@@ -13,14 +13,18 @@ class HistoryScreen extends StatelessWidget {
       body: StreamBuilder<List<TransactionModel>>(
         stream: fs.streamTransactions(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return Center(child: CircularProgressIndicator());
+          if (!snapshot.hasData)
+            return Center(child: CircularProgressIndicator());
           final list = snapshot.data!;
           if (list.isEmpty) return Center(child: Text('No transactions'));
           return ListView.builder(
             itemCount: list.length,
             itemBuilder: (ctx, idx) {
               final tx = list[idx];
-              return TransactionTile(tx: tx, onDelete: () => fs.deleteTransaction(tx.id), onEdit: () {});
+              return TransactionTile(
+                  tx: tx,
+                  onDelete: () => fs.deleteTransaction(tx.id!),
+                  onEdit: () {});
             },
           );
         },

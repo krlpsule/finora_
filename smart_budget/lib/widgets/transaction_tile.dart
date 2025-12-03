@@ -19,7 +19,7 @@ class TransactionTile extends StatelessWidget {
           child: Text(tx.category[0].toUpperCase()),
         ),
         title: Text(tx.category),
-        subtitle: Text(tx.note + ' • ' + DateFormat.yMMMd().format(tx.date)),
+        subtitle: Text((tx.note ?? '') + ' • ' + DateFormat.yMMMd().format(tx.date)),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
