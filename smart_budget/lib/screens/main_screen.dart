@@ -7,14 +7,12 @@ import 'history.dart';
 import 'ai_assistant.dart';
 import 'add_transaction.dart'; // İşlem ekleme ekranı
 
-// --- Placeholder/Diğer Sayfaların Const Tanımlamaları (Çalışma Garantisi için) ---
-// Not: Bu sınıflar kendi dosyalarından (history.dart, ai_assistant.dart) geliyorsa,
-// buraya sadece import yeterlidir.
+
 class HistoryPage extends StatelessWidget {
   const HistoryPage({super.key});
   @override
   Widget build(BuildContext context) {
-    // MainScreen'de AppBar yönetildiği için burada sadece Center kullanıyoruz.
+    
     return const Center(child: Text('Transaction History Coming Soon'));
   }
 }
@@ -64,7 +62,7 @@ class _MainScreenState extends State<MainScreen> {
     ];
 
     return Scaffold(
-      // PRD 7.1'e uygun tek AppBar, sekmeler arasında başlığı değiştirir
+      
       appBar: AppBar(
         title: Text(titles[_selectedIndex]),
         elevation: 0,

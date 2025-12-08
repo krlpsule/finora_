@@ -93,4 +93,25 @@ class NotificationService {
     }
     return scheduledDate;
   }
+
+  Future<void> showSimpleNotification(int id, String title, String body) async {
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+      'simple_notification_channel',
+      'Simple Notifications',
+      channelDescription: 'Simple notification channel',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+
+    const NotificationDetails platformChannelSpecifics =
+        NotificationDetails(android: androidPlatformChannelSpecifics);
+
+    await flutterLocalNotificationsPlugin.show(
+      id,
+      title,
+      body,
+      platformChannelSpecifics,
+    );
+  }
 }
