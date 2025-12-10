@@ -1,4 +1,4 @@
-// lib/screens/ai_assistant.dart
+// lib/screens/ai_assistant.dart (Nihai Versiyon)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -6,7 +6,8 @@ import '../services/ai_service.dart';
 import '../services/speech_service.dart';
 import '../models/transaction_model.dart';
 import '../features/transaction/transaction_bloc.dart';
-import '../features/transaction/transaction_state.dart'; // <-- KRİTİK: TransactionsLoaded için eklendi
+import '../features/transaction/transaction_state.dart';
+import '../services/ai_chat_provider.dart'; 
 
 class AIAssistantPage extends StatefulWidget {
   const AIAssistantPage({super.key});
@@ -18,19 +19,15 @@ class AIAssistantPage extends StatefulWidget {
 class _AIAssistantPageState extends State<AIAssistantPage> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final List<Map<String, String>> _messages = [];
-  bool _isLoading = false;
+  // final List<Map<String, String>> _messages = []; // KALDIRILDI
+  // bool _isLoading = false; // KALDIRILDI
 
   late SpeechService _speechService;
 
   @override
   void initState() {
     super.initState();
-    _messages.add({
-      "role": "assistant",
-      "text":
-          "Hello! I am Finora AI. Ask me about your finances or a general query."
-    });
+    // İlk mesaj artık provider içinde yönetildiği için burası boş kalabilir.
   }
 
   @override
@@ -43,56 +40,49 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
   // Kullanıcı mesajını ekle ve AI'dan yanıt al
   void _sendMessage() async {
     final query = _controller.text.trim();
-    if (query.isEmpty || _isLoading) return;
+    if (query.isEmpty) return;
+
+    // Provider'ı al
+    final chatProvider = Provider.of<AIChatProvider>(context, listen: false);
+    if (chatProvider.isLoading)
+      return; // Loading durumunu provider'dan kontrol et
 
     // Kullanıcı mesajını ekle
-    setState(() {
-      _messages.add({"role": "user", "text": query});
-      _controller.clear();
-      _isLoading = true;
-    });
+    chatProvider.addMessage({"role": "user", "text": query});
+    _controller.clear();
+    chatProvider.setLoading(true);
 
     _scrollToBottom();
 
-    // --- Analiz için işlem verilerini al ---
+    // Analiz için işlem verilerini al
     final transactionState = context.read<TransactionBloc>().state;
     List<TransactionModel> transactions = [];
     if (transactionState is TransactionLoaded) {
-      // <-- Hata çözüldü
       transactions = transactionState.transactions.take(100).toList();
     }
-    // ------------------------------------
 
     try {
       final aiService = Provider.of<AIService>(context, listen: false);
-
-      // Hata Düzeltmesi: getFinancialResponse yerine getResponse kullandık
-      final response = await aiService.getResponse(query);
+      final response =
+          await aiService.getFinancialResponse(query, transactions);
 
       // AI yanıtını ekle
-      setState(() {
-        _messages.add({"role": "assistant", "text": response});
-      });
+      chatProvider.addMessage({"role": "assistant", "text": response});
     } catch (e) {
-      setState(() {
-        _messages.add({
-          "role": "assistant",
-          "text": "An error occurred while fetching the response: $e"
-        });
+      chatProvider.addMessage({
+        "role": "assistant",
+        "text": "An error occurred while fetching the response: $e"
       });
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      chatProvider.setLoading(false); // Yüklenmeyi provider üzerinden sonlandır
       _scrollToBottom();
     }
   }
 
-  // PRD R5.3: Sesli Komutu Başlatma (Düzeltilmiş Callback Yapısı)
-  // lib/screens/ai_assistant.dart (Düzeltilmiş _startVoiceInput Metodu)
-
+  // PRD R5.3: Sesli Komutu Başlatma
   void _startVoiceInput() async {
-    final originalText = _controller.text; // Dinleme öncesi metni kaydet
+    final chatProvider = Provider.of<AIChatProvider>(context, listen: false);
+    final originalText = _controller.text;
 
     if (_speechService.isListening) {
       _speechService.stopListening();
@@ -107,7 +97,6 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
         onResult: (recognizedWords) {
           if (recognizedWords.isNotEmpty) {
             _controller.text = recognizedWords;
-            // Bu aşamada _sendMessage() çağrıldığında text boş olmadığı için sorun olmaz.
             _sendMessage();
           }
           setState(() {});
@@ -118,37 +107,23 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
         localeId: 'en_US',
       );
 
-      // --- KRİTİK EKLENTİ: Ses Tanıma Başarısızlığı Kontrolü ---
+      // Başarısızlık Kontrolü
+      await Future.delayed(const Duration(seconds: 6));
 
-      // Dinleme tamamlandıktan sonra (muhtemelen 5 saniye sonra) kontrolü yap.
-      // Güvenilir bir kontrol için dinleme durumunun bitmesini beklememiz gerekir.
-
-      // NOT: Ses tanıma işlemi genellikle asenkron bittiği için,
-      // direkt olarak burada kontrol etmek yerine, dinleme durumunun
-      // bittiğinden emin olmalıyız. En basit yol, bir süre beklemektir.
-
-      // Basit ve etkili kontrol: Dinleme durduğunda controller'da hala orijinal metin varsa
-      // (yani yeni metin gelmediyse) hata mesajı göster.
-      await Future.delayed(const Duration(
-          seconds: 6)); // Dinleme süresinden biraz daha fazla bekle.
-
-      if (_controller.text == originalText && !_speechService.isListening) {
-        setState(() {
-          _messages.add({
-            "role": "assistant",
-            "text":
-                "I could not hear or understand your speech. Please try speaking clearly or use the keyboard.",
-          });
+      if (_controller.text == originalText &&
+          !_speechService.isListening &&
+          !chatProvider.isLoading) {
+        chatProvider.addMessage({
+          "role": "assistant",
+          "text":
+              "I could not hear or understand your speech. Please try speaking clearly or use the keyboard.",
         });
         _scrollToBottom();
       }
-      // -----------------------------------------------------
     } else {
-      setState(() {
-        _messages.add({
-          "role": "assistant",
-          "text": "Voice input is not available. Check microphone permissions."
-        });
+      chatProvider.addMessage({
+        "role": "assistant",
+        "text": "Voice input is not available. Check microphone permissions."
       });
       _scrollToBottom();
     }
@@ -168,6 +143,11 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 🚨 Provider'ı dinle: Sayfa değişse bile mesajlar korunur.
+    final chatProvider = context.watch<AIChatProvider>();
+    final messages = chatProvider.messages;
+    final isLoading = chatProvider.isLoading;
+
     return Scaffold(
       appBar: null,
       body: Column(
@@ -176,9 +156,9 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
             child: ListView.builder(
               controller: _scrollController,
               padding: const EdgeInsets.all(12),
-              itemCount: _messages.length,
+              itemCount: messages.length, // <-- Provider'dan
               itemBuilder: (context, index) {
-                final message = _messages[index];
+                final message = messages[index];
                 final isUser = message["role"] == "user";
 
                 return Align(
@@ -212,7 +192,8 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
               },
             ),
           ),
-          if (_isLoading) const LinearProgressIndicator(),
+          if (isLoading) // <-- Provider'dan
+            const LinearProgressIndicator(),
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Row(
@@ -224,7 +205,7 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
                         ? Colors.red
                         : Theme.of(context).primaryColor,
                   ),
-                  onPressed: _isLoading ? null : _startVoiceInput,
+                  onPressed: isLoading ? null : _startVoiceInput,
                 ),
                 Expanded(
                   child: TextField(
@@ -241,7 +222,8 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.send),
-                  onPressed: _isLoading ? null : _sendMessage,
+                  onPressed:
+                      isLoading ? null : _sendMessage, // <-- Provider'dan
                 ),
               ],
             ),

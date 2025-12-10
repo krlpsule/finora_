@@ -1,41 +1,48 @@
 // lib/services/ai_service.dart
 
-import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
+import '../models/transaction_model.dart';
 
 class AIService {
+  // 🚨 Hata Çözümü: _model tanımı burada olmalı
   late final GenerativeModel _model;
-
-  // AIService Constructor'ı
+  
   AIService() {
-    // API anahtarını .env dosyasından okuma (main.dart'ta yüklenmişti)
-    final apiKey = dotenv.env["GEMINI_API_KEY"];
-    
+    final apiKey = dotenv.env['GEMINI_API_KEY'];
     if (apiKey == null) {
-      // API anahtarı yoksa uygulama başlatılırken hata fırlat
-      throw Exception("GEMINI_API_KEY .env dosyasında bulunamadı.");
+      throw Exception("GEMINI_API_KEY not found in .env file.");
     }
-
-    // PRD'ye uygun modeli başlatma (gemini-2.5-flash)
     _model = GenerativeModel(
-      model: 'gemini-2.5-flash', // Hızlı ve sohbet tabanlı görevler için
+      model: 'gemini-2.5-flash', 
       apiKey: apiKey,
     );
   }
 
-  // PRD R5.1.3: Kullanıcının doğal dil sorgularını işleyen temel metot
+  // Genel sorgular için (opsiyonel)
   Future<String> getResponse(String userQuery) async {
-    try {
-      final content = [Content.text(userQuery)];
-      final response = await _model.generateContent(content);
-      
-      // Yanıtın sadece metin kısmını döndür
-      return response.text ?? "I couldn't analyze your question. Please try again.";
-    } catch (e) {
-      print('AI Service Error: $e');
-      return "Failed to connect to the AI service. Please check your API key.";
-    }
+    final response = await _model.generateContent([Content.text(userQuery)]);
+    return response.text ?? "Sorry, I couldn't generate a response.";
   }
 
-  // İleride, finansal veriyi analiz etmek için ek metotlar buraya eklenecek.
+  // KRİTİK METOT: Finansal analiz ve veriye erişim için (Hata çözüldü)
+  Future<String> getFinancialResponse(String userQuery, List<TransactionModel> transactions) async {
+    
+    // İşlem verilerini okunabilir bir metin formatına dönüştürme
+    String transactionData = transactions.map((tx) => 
+        'ID:${tx.id}, Type:${tx.isIncome ? "Income" : "Expense"}, Amount:${tx.amount.toStringAsFixed(2)}, Category:${tx.category}, Date:${tx.date.toIso8601String()}'
+    ).join('\n');
+    
+    String fullPrompt = 
+        "You are Finora AI, a helpful financial assistant. Your goal is to provide insightful, personalized advice and analysis based ONLY on the transaction data provided below. Do not assume any other data. Respond clearly and only in English.\n\n" +
+        "USER QUERY: $userQuery\n\n" +
+        "TRANSACTION DATA:\n$transactionData";
+        
+    try {
+        final response = await _model.generateContent([Content.text(fullPrompt)]);
+        return response.text ?? "Analysis failed. Please try again.";
+    } catch (e) {
+        return "An error occurred during analysis: $e";
+    }
+  }
 }

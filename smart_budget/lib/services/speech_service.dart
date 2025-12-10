@@ -1,7 +1,7 @@
 // lib/services/speech_service.dart
 
 import 'package:speech_to_text/speech_to_text.dart';
-import 'package:flutter/material.dart'; // <-- KRİTİK: VoidCallback için eklendi
+import 'package:flutter/material.dart'; // 🚨 Hata Çözümü: VoidCallback için eklendi
 
 class SpeechService {
   final SpeechToText _speechToText = SpeechToText();
@@ -16,7 +16,6 @@ class SpeechService {
   // PRD R5.3: Ses kaydını başlat ve sonucu callback ile döndür
   Future<void> startListening({
     required Function(String) onResult,
-    // Dinleme durumu değiştiğinde çağrılacak opsiyonel callback
     VoidCallback? onListeningStatusChanged,
     String localeId = 'en_US', 
   }) async {
@@ -26,11 +25,12 @@ class SpeechService {
     
     if (isAvailable && !isListening) {
       
-      // Dinleme durumu değişimlerini dinlemek için (ikona yansıtmak amacıyla)
+      // Hata Çözümü: Status listener, durumu UI'a bildirir.
       _speechToText.statusListener = (status) {
          if (onListeningStatusChanged != null) {
               onListeningStatusChanged();
          }
+         // SpeechToTextStatus kullanmaktan kaçınıldı.
       };
 
       await _speechToText.listen(
@@ -49,7 +49,8 @@ class SpeechService {
   void stopListening() {
     if (_speechToText.isListening) {
       _speechToText.stop();
-      // stop çağrıldıktan sonra statusListener otomatik tetiklenir
     }
   }
+  
+  Future<List<LocaleName>> get locales => _speechToText.locales();
 }

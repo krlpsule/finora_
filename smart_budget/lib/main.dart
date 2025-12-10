@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../services/ai_chat_provider.dart'; 
 
-// Servisler ve Ekranlar
+
 import 'screens/dashboard.dart';
 import 'screens/main_screen.dart';
 import 'services/firestore_service.dart';
@@ -12,11 +13,10 @@ import 'services/notification_service.dart';
 import 'services/speech_service.dart';
 import 'services/ai_service.dart';
 
-// State Management
+
 import 'features/transaction/transaction_bloc.dart';
 import 'features/transaction/transaction_event.dart';
 
-// Firebase Yapılandırması
 import 'firebase_options.dart';
 
 void main() async {
@@ -52,6 +52,7 @@ class FinoraApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => AIChatProvider()),
         // TransactionBloc: İşlem yönetimi için (PRD Madde 5.4)
         BlocProvider<TransactionBloc>(
           create: (context) =>
