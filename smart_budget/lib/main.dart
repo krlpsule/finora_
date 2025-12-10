@@ -36,11 +36,11 @@ void main() async {
 
   // 3. Bildirim Servisi Başlatma ve Planlama (PRD Madde 5.6)
   final notificationService = NotificationService();
-  await notificationService.init();
+ // await notificationService.init();
   
   // Uygulama her açıldığında günlük motivasyon sözü bildirimini planlar.
   // Bu, PRD'deki "Daily motivational financial quote"  gereksinimi içindir.
-  await notificationService.scheduleDailyQuote();
+  //await notificationService.scheduleDailyQuote();
 
   runApp(const FinoraApp());
 }
