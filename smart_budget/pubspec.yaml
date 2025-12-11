@@ -43,6 +43,13 @@ dependencies:
   intl: ^0.18.0
   uuid: ^3.0.7
 
+  # Data Parsing
+  file_picker: ^8.0.0      # File selection
+  csv: ^6.0.0              # CSV 
+  excel: ^4.0.0            # Excel (.xlsx) 
+  syncfusion_flutter_pdf: ^24.1.41 # PDF 'pdf_text'
+  intl: ^0.19.0            # Date
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
