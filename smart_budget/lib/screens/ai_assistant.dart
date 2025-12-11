@@ -19,15 +19,14 @@ class AIAssistantPage extends StatefulWidget {
 class _AIAssistantPageState extends State<AIAssistantPage> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  // final List<Map<String, String>> _messages = []; // KALDIRILDI
-  // bool _isLoading = false; // KALDIRILDI
+  
 
   late SpeechService _speechService;
 
   @override
   void initState() {
     super.initState();
-    // İlk mesaj artık provider içinde yönetildiği için burası boş kalabilir.
+    
   }
 
   @override
@@ -37,24 +36,24 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
     _speechService.initSpeech();
   }
 
-  // Kullanıcı mesajını ekle ve AI'dan yanıt al
+  
   void _sendMessage() async {
     final query = _controller.text.trim();
     if (query.isEmpty) return;
 
-    // Provider'ı al
+    
     final chatProvider = Provider.of<AIChatProvider>(context, listen: false);
     if (chatProvider.isLoading)
-      return; // Loading durumunu provider'dan kontrol et
+      return; 
 
-    // Kullanıcı mesajını ekle
+   
     chatProvider.addMessage({"role": "user", "text": query});
     _controller.clear();
     chatProvider.setLoading(true);
 
     _scrollToBottom();
 
-    // Analiz için işlem verilerini al
+    
     final transactionState = context.read<TransactionBloc>().state;
     List<TransactionModel> transactions = [];
     if (transactionState is TransactionLoaded) {
@@ -66,7 +65,7 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
       final response =
           await aiService.getFinancialResponse(query, transactions);
 
-      // AI yanıtını ekle
+      
       chatProvider.addMessage({"role": "assistant", "text": response});
     } catch (e) {
       chatProvider.addMessage({
@@ -74,12 +73,12 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
         "text": "An error occurred while fetching the response: $e"
       });
     } finally {
-      chatProvider.setLoading(false); // Yüklenmeyi provider üzerinden sonlandır
+      chatProvider.setLoading(false); 
       _scrollToBottom();
     }
   }
 
-  // PRD R5.3: Sesli Komutu Başlatma
+  
   void _startVoiceInput() async {
     final chatProvider = Provider.of<AIChatProvider>(context, listen: false);
     final originalText = _controller.text;
@@ -107,7 +106,7 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
         localeId: 'en_US',
       );
 
-      // Başarısızlık Kontrolü
+    
       await Future.delayed(const Duration(seconds: 6));
 
       if (_controller.text == originalText &&
@@ -143,7 +142,7 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 🚨 Provider'ı dinle: Sayfa değişse bile mesajlar korunur.
+   
     final chatProvider = context.watch<AIChatProvider>();
     final messages = chatProvider.messages;
     final isLoading = chatProvider.isLoading;
@@ -156,7 +155,7 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
             child: ListView.builder(
               controller: _scrollController,
               padding: const EdgeInsets.all(12),
-              itemCount: messages.length, // <-- Provider'dan
+              itemCount: messages.length, 
               itemBuilder: (context, index) {
                 final message = messages[index];
                 final isUser = message["role"] == "user";
@@ -223,7 +222,7 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
                 IconButton(
                   icon: const Icon(Icons.send),
                   onPressed:
-                      isLoading ? null : _sendMessage, // <-- Provider'dan
+                      isLoading ? null : _sendMessage, 
                 ),
               ],
             ),

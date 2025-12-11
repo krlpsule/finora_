@@ -9,10 +9,9 @@ import '../../models/transaction_model.dart';
 
 class TransactionBloc extends Bloc<TransactionEvent, TransactionState> {
   final FirestoreService _firestoreService;
-  StreamSubscription? _transactionsSubscription; // Gerçek zamanlı dinleyici
-
+  StreamSubscription? _transactionsSubscription; 
   TransactionBloc(this._firestoreService) : super(TransactionInitial()) {
-    // --- Event Handler Tanımları ---
+    
     on<LoadTransactions>(_onLoadTransactions);
     on<TransactionsUpdated>(_onTransactionsUpdated);
     on<AddTransactionEvent>(_onAddTransaction);
@@ -20,15 +19,13 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState> {
     on<UpdateTransactionEvent>(_onUpdateTransaction);
   }
 
-  // --- HANDLERS (Olay İşleyicileri) ---
-
-  // İşlemleri yükle ve gerçek zamanlı stream'i başlat
+  
   void _onLoadTransactions(
       LoadTransactions event, Emitter<TransactionState> emit) {
-    _transactionsSubscription?.cancel(); // Önceki dinleyiciyi kapat
+    _transactionsSubscription?.cancel(); 
     emit(TransactionLoading());
 
-    // Firestore stream'ini başlat ve gelen veriyi TransactionsUpdated Event'i ile BLoC'a geri gönder
+    
     _transactionsSubscription = _firestoreService.streamTransactions().listen(
       (transactions) {
         add(TransactionsUpdated(transactions));
@@ -39,20 +36,20 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState> {
     );
   }
 
-  // Stream'den gelen yeni veriyi State olarak UI'a yayınla
+
   void _onTransactionsUpdated(
       TransactionsUpdated event, Emitter<TransactionState> emit) {
     emit(TransactionLoaded(event.transactions));
   }
 
-  // Yeni İşlem Ekleme
+  
   void _onAddTransaction(
       AddTransactionEvent event, Emitter<TransactionState> emit) async {
     try {
-      // Servisi çağır. Firestore işlemi tamamlanınca stream otomatik olarak yeni veriyi çekecek.
+      
       await _firestoreService.addTransaction(event.transaction);
     } catch (e) {
-      // Hata durumunda, mevcut veriyi koruyarak hata mesajı yayınla
+      
       final currentState = state;
       if (currentState is TransactionLoaded) {
         emit(TransactionError('İşlem eklenirken hata oluştu: $e'));
@@ -63,7 +60,6 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState> {
     }
   }
 
-  // İşlem Silme (Diğer CRUD işlemlerine benzer)
   void _onDeleteTransaction(
       DeleteTransactionEvent event, Emitter<TransactionState> emit) async {
     try {
@@ -79,7 +75,6 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState> {
     }
   }
 
-  // İşlem Güncelleme
   void _onUpdateTransaction(
       UpdateTransactionEvent event, Emitter<TransactionState> emit) async {
     try {
@@ -95,7 +90,7 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState> {
     }
   }
 
-  // BLoC kapatılırken stream'i durdur
+  
   @override
   Future<void> close() {
     _transactionsSubscription?.cancel();

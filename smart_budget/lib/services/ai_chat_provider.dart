@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 
 class AIChatProvider extends ChangeNotifier {
-  // Mesaj listesini ve ilk karşılama mesajını tutar
+
   final List<Map<String, String>> _messages = [
     {
       "role": "assistant",
@@ -13,23 +13,23 @@ class AIChatProvider extends ChangeNotifier {
   ];
   bool _isLoading = false;
 
-  // Getter metotları
+
   List<Map<String, String>> get messages => _messages;
   bool get isLoading => _isLoading;
 
-  // Mesaj ekleme metodu
+
   void addMessage(Map<String, String> message) {
     _messages.add(message);
-    notifyListeners(); // UI'ı güncelle
+    notifyListeners(); 
   }
 
-  // Yüklenme durumunu ayarlama metodu
+ 
   void setLoading(bool loading) {
     _isLoading = loading;
-    notifyListeners(); // UI'ı güncelle
+    notifyListeners(); 
   }
 
-  // Konuşmayı temizleme metodu (opsiyonel)
+ 
   void clearMessages() {
     _messages.clear();
     _messages.add({

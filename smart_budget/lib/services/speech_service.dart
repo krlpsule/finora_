@@ -1,7 +1,7 @@
 // lib/services/speech_service.dart
 
 import 'package:speech_to_text/speech_to_text.dart';
-import 'package:flutter/material.dart'; // 🚨 Hata Çözümü: VoidCallback için eklendi
+import 'package:flutter/material.dart'; 
 
 class SpeechService {
   final SpeechToText _speechToText = SpeechToText();
@@ -13,7 +13,7 @@ class SpeechService {
     await _speechToText.initialize();
   }
 
-  // PRD R5.3: Ses kaydını başlat ve sonucu callback ile döndür
+ 
   Future<void> startListening({
     required Function(String) onResult,
     VoidCallback? onListeningStatusChanged,
@@ -25,12 +25,12 @@ class SpeechService {
     
     if (isAvailable && !isListening) {
       
-      // Hata Çözümü: Status listener, durumu UI'a bildirir.
+      
       _speechToText.statusListener = (status) {
          if (onListeningStatusChanged != null) {
               onListeningStatusChanged();
          }
-         // SpeechToTextStatus kullanmaktan kaçınıldı.
+        
       };
 
       await _speechToText.listen(

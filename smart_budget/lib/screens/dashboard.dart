@@ -12,7 +12,7 @@ import '../features/transaction/transaction_event.dart';
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
 
-  // İşlem Düzenleme Ekranını açma metodu
+
   void _openAddTransactionScreen(BuildContext context,
       {TransactionModel? txToEdit}) {
     Navigator.of(context).push(
@@ -20,7 +20,6 @@ class DashboardPage extends StatelessWidget {
     );
   }
 
-  // Toplam Gelir, Gider ve Bakiye hesaplama metodu
   Map<String, double> _calculateSummary(List<TransactionModel> transactions) {
     double totalIncome = 0;
     double totalExpense = 0;
@@ -44,7 +43,7 @@ class DashboardPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final transactionBloc = context.read<TransactionBloc>();
 
-    // Dashboard artık Scaffold'u değil, sadece içerik widget'ını döndürüyor.
+    
     return BlocBuilder<TransactionBloc, TransactionState>(
       builder: (context, state) {
         if (state is TransactionLoading || state is TransactionInitial) {
@@ -59,11 +58,11 @@ class DashboardPage extends StatelessWidget {
 
         if (state is TransactionLoaded) {
           final transactions = state.transactions;
-          final summary = _calculateSummary(transactions); // Özeti hesapla
+          final summary = _calculateSummary(transactions); 
 
           return CustomScrollView(
             slivers: [
-              // --- 1. PRD'YE UYGUN ÖZET KART (SUMMARY CARD) ---
+           
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -71,7 +70,7 @@ class DashboardPage extends StatelessWidget {
                 ),
               ),
 
-              // --- 2. BAŞLIK ---
+              
               const SliverToBoxAdapter(
                 child: Padding(
                   padding:
@@ -83,7 +82,7 @@ class DashboardPage extends StatelessWidget {
                 ),
               ),
 
-              // --- 3. İŞLEM LİSTESİ ---
+             
               transactions.isEmpty
                   ? const SliverFillRemaining(
                       child: Center(
@@ -96,11 +95,11 @@ class DashboardPage extends StatelessWidget {
                           final tx = transactions[index];
                           return TransactionTile(
                             tx: tx,
-                            // Düzenleme fonksiyonunu buraya bağla
+                            
                             onEdit: () => _openAddTransactionScreen(context,
                                 txToEdit: tx),
                             onDelete: () {
-                              // Silme işlemini BLoC'a gönder
+                             
                               transactionBloc
                                   .add(DeleteTransactionEvent(tx.id!));
                             },
@@ -118,7 +117,7 @@ class DashboardPage extends StatelessWidget {
     );
   }
 
-  // Özet Kart Widget'ı (PRD 7.1'deki "Card-based layout"a uygun)
+  
   Widget _buildSummaryCard(BuildContext context, Map<String, double> summary) {
     const double radius = 12.0;
 
@@ -130,7 +129,7 @@ class DashboardPage extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(radius),
-          // PRD 7.1'deki "Soft gradients"e uygun gradient
+          
           gradient: LinearGradient(
             colors: [
               Theme.of(context).primaryColor,
@@ -179,7 +178,6 @@ class DashboardPage extends StatelessWidget {
     );
   }
 
-  // Özet Kart Item Widget'ı
   Widget _buildSummaryItem({
     required IconData icon,
     required String label,
