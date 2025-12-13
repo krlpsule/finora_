@@ -4,22 +4,24 @@ import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../services/ai_chat_provider.dart';
-
+import 'package:firebase_auth/firebase_auth.dart';
+import 'features/auth/auth_bloc.dart';
+import 'features/auth/auth_event.dart';
+import 'features/auth/auth_state.dart';
+import 'screens/login_screen.dart';
 import 'screens/dashboard.dart';
 import 'screens/main_screen.dart';
 import 'services/firestore_service.dart';
 import 'services/notification_service.dart';
 import 'services/speech_service.dart';
 import 'services/ai_service.dart';
-
 import 'features/transaction/transaction_bloc.dart';
 import 'features/transaction/transaction_event.dart';
-
 import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   //Load environment variables from .env file
   try {
     await dotenv.load(fileName: ".env");
@@ -54,7 +56,10 @@ class FinoraApp extends StatelessWidget {
           create: (context) =>
               TransactionBloc(FirestoreService())..add(LoadTransactions()),
         ),
-
+        BlocProvider<AuthBloc>(
+          create: (context) =>
+              AuthBloc(FirebaseAuth.instance)..add(AppStarted()),
+        ),
         // Dependency Injection for various services
         Provider<AIService>(create: (_) => AIService()),
         Provider<SpeechService>(create: (_) => SpeechService()),
@@ -82,7 +87,20 @@ class FinoraApp extends StatelessWidget {
                 fontWeight: FontWeight.bold),
           ),
         ),
-        home: const MainScreen(),
+        home: BlocBuilder<AuthBloc, AuthState>(
+          builder: (context, state) {
+            if (state is Authenticated) {
+              // If logged in, redirect to the main screen (MainScreen containing Dashboard)
+              return const MainScreen();
+            } else if (state is Unauthenticated) {
+              // If no login has been made, redirect to the Login page
+              return const LoginScreen();
+            }
+            // Show the loading screen at startup or during loading
+            return const Scaffold(
+                body: Center(child: CircularProgressIndicator()));
+          },
+        ),
       ),
     );
   }
