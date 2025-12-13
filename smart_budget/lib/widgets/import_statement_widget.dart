@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'finora_/smart_budget/lib/services/statement_parser_service.dart'; 
+import '/services/statement_parser_service.dart'; 
 
 class ImportStatementWidget extends StatefulWidget {
   final Function(List<Map<String, dynamic>>) onDataLoaded;
