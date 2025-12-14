@@ -1,18 +1,21 @@
-import 'dart:convert';
-import 'dart:io';
+// lib/services/statement_parser_service.dart
+
+import 'dart:typed_data'; // Required for Uint8List
+import 'dart:convert'; // Required for UTF8 decode
 import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import 'package:excel/excel.dart';
-import 'package:syncfusion_flutter_pdf/pdf.dart'; // PDF paketi
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 
+// File option enum (Shared with ImportStatementWidget)
 enum FileTypeOption { csv, excel, pdf }
 
 class StatementParserService {
-  
-  // Main func: calls related parser accordingly the choice of user
-  Future<List<Map<String, dynamic>>> pickAndParseFile(FileTypeOption type) async {
+  // Main method: Picks the file, reads content as bytes, and delegates parsing.
+  Future<List<Map<String, dynamic>>> pickAndParseFile(
+      FileTypeOption type) async {
     List<String> allowedExtensions = [];
-    
+
     switch (type) {
       case FileTypeOption.csv:
         allowedExtensions = ['csv'];
@@ -28,102 +31,102 @@ class StatementParserService {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: allowedExtensions,
+      // CRITICAL: Ensure 'withData: true' for web compatibility (reading bytes)
+      withData: true,
     );
 
-    if (result != null && result.files.single.path != null) {
-      File file = File(result.files.single.path!);
-      
+    if (result != null && result.files.isNotEmpty) {
+      final pickedFile = result.files.single;
+      final fileBytes = pickedFile.bytes;
+
+      if (fileBytes == null) {
+        throw Exception(
+            "File content could not be read (Bytes are null). Please try a different file.");
+      }
+
+      // Delegate the parsing based on the selected file type
       if (type == FileTypeOption.csv) {
-        return await _parseCSV(file);
+        return await _parseCSV(fileBytes);
       } else if (type == FileTypeOption.excel) {
-        return await _parseExcel(file);
+        return await _parseExcel(fileBytes);
       } else {
-        return await _parsePDF(file);
+        return await _parsePDF(fileBytes);
       }
     }
     return [];
   }
-// --- 1. CSV PARSING ---
-  Future<List<Map<String, dynamic>>> _parseCSV(File file) async {
-    try {
-      // 1. read file as text
-      String fileContent = await file.readAsString();
-      
-      // 2. Find Delimiter
-      String delimiter = _detectDelimiter(fileContent);
-      print("Tespit edilen ayırıcı: '$delimiter'"); // To see in console
 
-      // 3. turn into list
+// --- 1. CSV PARSING ---
+  Future<List<Map<String, dynamic>>> _parseCSV(Uint8List bytes) async {
+    try {
+      // Convert bytes to text (Platform-independent reading)
+      String fileContent = utf8.decode(bytes);
+
+      String delimiter = _detectDelimiter(fileContent);
+      print("Detected delimiter: '$delimiter'"); // Print detected delimiter
+
       List<List<dynamic>> fields = CsvToListConverter(
         fieldDelimiter: delimiter,
-        eol: '\n',).convert(fileContent);
-    
-    List<Map<String, dynamic>> transactions = [];
+        eol: '\n',
+      ).convert(fileContent);
 
-    for (var i = 1; i < fields.length; i++) {
-      var row = fields[i];
-      if (row.length < 3) continue;
-      try {
-        // 1. Column Matching
-        // Default: [0] Date | [1] Description | [2] Amount
-        String dateRaw = row[0].toString(); 
-        String descRaw = row[1].toString();
-        String amountRaw = row[2].toString();
+      List<Map<String, dynamic>> transactions = [];
 
-        // 2. String -> Double 
-        // Turkish format: "1.250,50 TL" or "-500,00"
-        // Code format: 1250.50 or -500.0
-        String cleanAmount = amountRaw
-            .replaceAll('TL', '')      
-            .replaceAll('TRY', '')     
-            .replaceAll(' ', '')       
-            .replaceAll('.', '')       
-            .replaceAll(',', '.')      
-            .trim();
+      // Start from 1 to skip the header row
+      for (var i = 1; i < fields.length; i++) {
+        var row = fields[i];
+        if (row.length < 3) continue; // Skip if row is too short
+        try {
+          // Default columns assumed: [0] Date | [1] Description | [2] Amount
+          String amountRaw = row[2].toString();
 
-        double amount = double.tryParse(cleanAmount) ?? 0.0;
+          // Clean the amount string for European/Turkish format (',' as decimal)
+          String cleanAmount = amountRaw
+              .replaceAll('TL', '')
+              .replaceAll('TRY', '')
+              .replaceAll(' ', '')
+              .replaceAll('.', '') // Remove thousands separator dot
+              .replaceAll(',', '.') // Replace comma decimal with dot decimal
+              .trim();
 
-        // 3. Expense- Income
-        String type = amount < 0 ? 'Gider' : 'Gelir';
-      
-        // 4. Add Data to List
-        transactions.add({
-          'date': dateRaw,           
-          'title': descRaw,          
-          'amount': amount.abs(),    
-          'type': type,              
-        });
+          double amount = double.tryParse(cleanAmount) ?? 0.0;
+          String type = amount < 0 ? 'Expense' : 'Income';
 
-      } catch (e) {
-        print("Exception occured while reading: $i , $e");
-        continue;
+          transactions.add({
+            'date': row[0].toString(),
+            'title': row[1].toString(),
+            'amount': amount.abs(), // Use absolute value for amount field
+            'type': type,
+          });
+        } catch (e) {
+          print("Exception occurred while reading row $i: $e");
+          continue;
+        }
       }
-    }
-    
-    return transactions;
-      
+      return transactions;
     } catch (e) {
       print("Failed to read CSV $e");
       return [];
     }
   }
 
-  // Helper function: find delimeter
+  // Helper function: Finds the most likely field delimiter
   String _detectDelimiter(String content) {
     if (content.isEmpty) return ';';
     String firstLine = content.split('\n').first;
     int commaCount = firstLine.split(',').length - 1;
     int semiCount = firstLine.split(';').length - 1;
+    // Assume semicolon if count is greater or equal (common in non-US CSVs)
     if (semiCount >= commaCount) {
-      return ';'; 
+      return ';';
     } else {
       return ',';
     }
   }
 
-  // --- 2. EXCEL PARSING ---
-  Future<List<Map<String, dynamic>>> _parseExcel(File file) async {
-    var bytes = file.readAsBytesSync();
+// --- 2. EXCEL PARSING ---
+  Future<List<Map<String, dynamic>>> _parseExcel(Uint8List bytes) async {
+    // Decode Excel file from bytes
     var excel = Excel.decodeBytes(bytes);
     List<Map<String, dynamic>> transactions = [];
 
@@ -131,10 +134,11 @@ class StatementParserService {
       var sheet = excel.tables[table];
       if (sheet == null) continue;
 
+      // Skip the first row (headers)
       for (int i = 1; i < sheet.rows.length; i++) {
         var row = sheet.rows[i];
         try {
-          // Deafult: [0] Date, [1] Description, [2] Amount
+          // Default columns assumed: [0] Date, [1] Description, [2] Amount
           var dateVal = row[0]?.value;
           var descVal = row[1]?.value;
           var amountVal = row[2]?.value;
@@ -144,7 +148,7 @@ class StatementParserService {
               'date': dateVal.toString(),
               'title': descVal.toString(),
               'amount': double.tryParse(amountVal.toString()) ?? 0.0,
-              'type': 'Unknown' 
+              'type': 'Unknown' // Type determination needs refinement for Excel
             });
           }
         } catch (e) {
@@ -155,36 +159,52 @@ class StatementParserService {
     return transactions;
   }
 
-  // --- 3. PDF PARSING ---
-  Future<List<Map<String, dynamic>>> _parsePDF(File file) async {
-    // Extracting text from PDF
-    final PdfDocument document = PdfDocument(inputBytes: file.readAsBytesSync());
-    String text = PdfTextExtractor(document).extractText();
-    document.dispose();
+// --- 3. PDF PARSING ---
+  Future<List<Map<String, dynamic>>> _parsePDF(Uint8List bytes) async {
+    try {
+      // Decode PDF from bytes
+      final PdfDocument document = PdfDocument(inputBytes: bytes);
+      // Extract all text content
+      String text = PdfTextExtractor(document).extractText();
+      document.dispose();
 
-    List<Map<String, dynamic>> transactions = [];
-    List<String> lines = text.split('\n');
+      List<Map<String, dynamic>> transactions = [];
+      List<String> lines = text.split('\n');
 
-    // Default Regex: "10/10/2023 MARKET HARCAMASI 150,00 TL" 
-    RegExp exp = RegExp(r'(\d{2}/\d{2}/\d{4})\s+(.+?)\s+(\d+[.,]\d{2})');
+      // Broad Regex pattern to capture Date, Description, and Amount (handling various formats)
+      // This Regex needs to be adapted to the specific bank statement layout!
+      RegExp exp = RegExp(
+          r'(\d{2}[/.-]\d{2}[/.-]\d{4}|\d{4}[/.-]\d{2}[/.-]\d{2})\s*(.+?)\s+([+-]?\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2}))\s*(TL|USD|EUR)?');
 
-    for (String line in lines) {
-      var match = exp.firstMatch(line);
-      if (match != null) {
-        String date = match.group(1)!;
-        String desc = match.group(2)!;
-        String amountStr = match.group(3)!;
-        double amount = double.parse(amountStr.replaceAll('.', '').replaceAll(',', '.'));
+      for (String line in lines) {
+        var match = exp.firstMatch(line);
+        if (match != null) {
+          String date = match.group(1)!;
+          String desc = match.group(2)!;
+          String amountStr = match.group(3)!;
 
-        transactions.add({
-          'date': date,
-          'title': desc.trim(),
-          'amount': amount,
-          'type': 'Expences'
-        });
+          // Convert to double, handling European number format (',' as decimal separator)
+          double amount =
+              double.parse(amountStr.replaceAll('.', '').replaceAll(',', '.'));
+
+          transactions.add({
+            'date': date,
+            'title': desc.trim(),
+            'amount': amount,
+            'type': 'Expense' // Type determination needs refinement
+          });
+        }
       }
+
+      if (transactions.isEmpty) {
+        print("PDF PARSING DEBUG: Regex did not match any transactions.");
+      }
+
+      return transactions;
+    } catch (e) {
+      print("PDF Parsing Failed: $e");
+      // Return empty list on parsing failure
+      return [];
     }
-    
-    return transactions;
   }
 }

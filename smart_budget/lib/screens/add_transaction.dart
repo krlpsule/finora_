@@ -7,7 +7,6 @@ import '../features/transaction/transaction_event.dart';
 import '../models/transaction_model.dart';
 
 class AddTransactionPage extends StatefulWidget {
-
   final TransactionModel? editTx;
 
   const AddTransactionPage({super.key, this.editTx});
@@ -19,38 +18,32 @@ class AddTransactionPage extends StatefulWidget {
 class _AddTransactionPageState extends State<AddTransactionPage> {
   final _formKey = GlobalKey<FormState>();
 
-  
   final _amountCtrl = TextEditingController();
   final _categoryCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
 
-  
   bool _isIncome = false;
 
   void _submitForm() {
     if (_formKey.currentState!.validate()) {
-    
       final newTransaction = TransactionModel(
-        id: widget.editTx?.id, 
+        title: _noteCtrl.text.isNotEmpty ? _noteCtrl.text : _categoryCtrl.text,
+        id: widget.editTx?.id,
         amount: double.parse(_amountCtrl.text),
         category: _categoryCtrl.text,
         note: _noteCtrl.text,
-        date: DateTime.now(), 
+        date: DateTime.now(),
         isIncome: _isIncome,
       );
 
-      
       final bloc = BlocProvider.of<TransactionBloc>(context);
 
       if (widget.editTx == null) {
-       
         bloc.add(AddTransactionEvent(newTransaction));
       } else {
-       
         bloc.add(UpdateTransactionEvent(newTransaction));
       }
 
-     
       Navigator.pop(context);
     }
   }
@@ -69,7 +62,6 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -78,7 +70,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                     value: _isIncome,
                     onChanged: (val) {
                       setState(() {
-                        _isIncome = val; 
+                        _isIncome = val;
                       });
                     },
                   ),
@@ -86,8 +78,6 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                 ],
               ),
               const SizedBox(height: 20),
-
-              
               TextFormField(
                 controller: _amountCtrl,
                 keyboardType: TextInputType.number,
@@ -106,8 +96,6 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                 },
               ),
               const SizedBox(height: 16),
-
-             
               TextFormField(
                 controller: _categoryCtrl,
                 decoration: const InputDecoration(
@@ -122,8 +110,6 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                 },
               ),
               const SizedBox(height: 16),
-
-              
               TextFormField(
                 controller: _noteCtrl,
                 decoration: const InputDecoration(
@@ -133,8 +119,6 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                 maxLines: 3,
               ),
               const SizedBox(height: 24),
-
-             
               ElevatedButton(
                 onPressed: _submitForm,
                 style: ElevatedButton.styleFrom(
