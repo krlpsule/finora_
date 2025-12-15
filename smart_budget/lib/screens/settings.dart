@@ -22,13 +22,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: (v) {
               setState(() => dailyReminders = v);
               if (v) {
-                notif.showSimpleNotification(1, 'Finora hatırlatma', 'Bugün harcamalarını kaydetmeyi unutma!');
+                notif.showSimpleNotification(1, 'Finora hatırlatma',
+                    'Bugün harcamalarını kaydetmeyi unutma!');
               }
             },
           ),
-          ListTile(title: Text('Notification settings'), trailing: Icon(Icons.chevron_right)),
-          ListTile(title: Text('Speech settings (microphone)'), trailing: Icon(Icons.chevron_right)),
-          ListTile(title: Text('About Finora'), subtitle: Text('Version 0.1.0')),
+          ListTile(
+              title: Text('Notification settings'),
+              trailing: Icon(Icons.chevron_right)),
+          ListTile(
+              title: Text('Speech settings (microphone)'),
+              trailing: Icon(Icons.chevron_right)),
+          ListTile(
+              title: Text('About Finora'), subtitle: Text('Version 0.1.0')),
         ],
       ),
     );
