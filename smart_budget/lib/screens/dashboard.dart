@@ -11,7 +11,7 @@ import '../models/transaction_model.dart';
 import 'add_transaction.dart';
 import '../features/transaction/transaction_event.dart';
 import '../services/statement_parser_service.dart'; 
-import '../services/firestore_service.dart'; // To save them
+import '../services/firestore_service.dart'; 
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -23,20 +23,19 @@ class DashboardPage extends StatelessWidget {
     );
   }
 
-  // --- NEW: Handle Import Logic ---
+  // --- LOGIC: Handle File Import ---
   Future<void> _handleImport(BuildContext context, FileTypeOption type) async {
-    // 1. Close the bottom sheet selection
+    // 1. Close the bottom sheet
     Navigator.pop(context);
 
-    // 2. Show loading indicator
+    // 2. Show loading feedback
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Processing file... Please wait.")),
     );
 
     try {
-      // 3. Call your Parser Service
+      // 3. Use your Service to pick and parse
       final parser = StatementParserService();
-      // The parser handles the file picking internally now
       final List<Map<String, dynamic>> rawData =
           await parser.pickAndParseFile(type);
 
@@ -49,26 +48,24 @@ class DashboardPage extends StatelessWidget {
         return;
       }
 
-      // 4. Convert & Save to Firestore
+      // 4. Save parsed data to Firestore
       final firestoreService = context.read<FirestoreService>();
       int count = 0;
 
       for (var data in rawData) {
-        // Safe conversion of data
+        // Safe data conversion
         double amount = (data['amount'] is num) 
             ? (data['amount'] as num).toDouble() 
             : 0.0;
         
         String title = data['title'] ?? 'Unknown';
         String dateStr = data['date'] ?? '';
-        bool isIncome = data['type'] == 'Income';
+        bool isIncome = data['type'] == 'Income'; // Simple check
 
-        // Attempt to parse date (assuming dd/MM/yyyy or yyyy-MM-dd)
+        // Attempt to parse date (handle dd/MM/yyyy vs yyyy-MM-dd)
         DateTime date;
         try {
-          // You might need to adjust this format based on your bank
           if (dateStr.contains('/')) {
-             // Try standard EU format
              List<String> parts = dateStr.split('/');
              if (parts.length == 3) {
                 // assume dd/MM/yyyy
@@ -83,16 +80,16 @@ class DashboardPage extends StatelessWidget {
           date = DateTime.now();
         }
 
-        // Create Model
+        // Create Transaction Object
         final tx = TransactionModel(
           amount: amount,
-          category: 'Imported', // Default category for imports
+          category: 'Imported', // You can change this later to be smarter
           note: title,
           date: date,
           isIncome: isIncome,
         );
 
-        // Save
+        // Add to Database
         await firestoreService.addTransaction(tx);
         count++;
       }
@@ -118,7 +115,7 @@ class DashboardPage extends StatelessWidget {
     }
   }
 
-  // --- NEW: Show Format Selection Dialog ---
+  // --- UI: Format Selection Dialog ---
   void _showImportOptions(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -128,7 +125,7 @@ class DashboardPage extends StatelessWidget {
       builder: (ctx) {
         return Container(
           padding: const EdgeInsets.all(24),
-          height: 280,
+          height: 300,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -188,7 +185,7 @@ class DashboardPage extends StatelessWidget {
       onTap: onTap,
     );
   }
-  
+
   Map<String, double> _calculateSummary(List<TransactionModel> transactions) {
     double totalIncome = 0;
     double totalExpense = 0;
@@ -259,7 +256,7 @@ class DashboardPage extends StatelessWidget {
                   ),
                 ),
 
-                // QUICK ACTIONS (Now functional!)
+                // QUICK ACTIONS
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -290,7 +287,8 @@ class DashboardPage extends StatelessWidget {
                                 label: "Upload Statement", 
                                 icon: Icons.file_upload_outlined,
                                 color: Colors.orange.shade800,
-                                onTap: () => _handleStatementUpload(context),
+                                // --- UPDATED: Calls the new dialog ---
+                                onTap: () => _showImportOptions(context),
                               ),
                             ),
                           ],
@@ -369,7 +367,8 @@ class DashboardPage extends StatelessWidget {
     );
   }
 
-  // ---------------- HEADER ----------------
+  // --- REUSABLE WIDGETS ---
+
   Widget _buildHeader() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -377,18 +376,8 @@ class DashboardPage extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: const [
-            Text(
-              "Welcome Back,",
-              style: TextStyle(fontSize: 14, color: Colors.grey),
-            ),
-            Text(
-              "Finora User <3",
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF2D3142),
-              ),
-            ),
+            Text("Welcome Back,", style: TextStyle(fontSize: 14, color: Colors.grey)),
+            Text("Ahsen Durmaz", style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF2D3142))),
           ],
         ),
         Container(
@@ -399,14 +388,13 @@ class DashboardPage extends StatelessWidget {
           ),
           child: const CircleAvatar(
             radius: 20,
-            backgroundImage: NetworkImage("https://i.pravatar.cc/150?img=32"), // Placeholder
+            backgroundImage: NetworkImage("https://i.pravatar.cc/150?img=32"),
           ),
         )
       ],
     );
   }
 
-  // ---------------- ACTION BUTTON ----------------
   Widget _buildActionButton(BuildContext context,
       {required String label,
       required IconData icon,
@@ -447,17 +435,13 @@ class DashboardPage extends StatelessWidget {
     );
   }
 
-  // ---------------- SUMMARY CARD ----------------
   Widget _buildSummaryCard(BuildContext context, Map<String, double> summary) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(28),
         gradient: const LinearGradient(
-          colors: [
-            Color(0xFF5B4DBC), // Darker indigo
-            Color(0xFF6C63FF), // Lighter purple
-          ],
+          colors: [Color(0xFF5B4DBC), Color(0xFF6C63FF)],
           begin: Alignment.bottomLeft,
           end: Alignment.topRight,
         ),
@@ -475,10 +459,7 @@ class DashboardPage extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Total Balance',
-                style: TextStyle(color: Colors.white70, fontSize: 15),
-              ),
+              const Text('Total Balance', style: TextStyle(color: Colors.white70, fontSize: 15)),
               Icon(Icons.account_balance_wallet, color: Colors.white.withOpacity(0.5)),
             ],
           ),
@@ -493,7 +474,6 @@ class DashboardPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-
           Row(
             children: [
               Expanded(
@@ -501,7 +481,7 @@ class DashboardPage extends StatelessWidget {
                   icon: Icons.arrow_upward_rounded,
                   label: 'Income',
                   amount: summary['income']!,
-                  iconColor: const Color(0xFF4ADE80), // Soft Green
+                  iconColor: const Color(0xFF4ADE80),
                   bgColor: const Color(0xFF4ADE80).withOpacity(0.2),
                 ),
               ),
@@ -511,7 +491,7 @@ class DashboardPage extends StatelessWidget {
                   icon: Icons.arrow_downward_rounded,
                   label: 'Expense',
                   amount: summary['expense']!,
-                  iconColor: const Color(0xFFF87171), // Soft Red
+                  iconColor: const Color(0xFFF87171),
                   bgColor: const Color(0xFFF87171).withOpacity(0.2),
                 ),
               ),
@@ -549,17 +529,10 @@ class DashboardPage extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                label,
-                style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 11),
-              ),
+              Text(label, style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 11)),
               Text(
                 '₺${amount.toStringAsFixed(0)}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
               ),
             ],
           ),
