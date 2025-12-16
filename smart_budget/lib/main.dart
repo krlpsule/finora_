@@ -48,10 +48,12 @@ class FinoraApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiBlocProvider(
+    // CHANGE: Use MultiProvider instead of MultiBlocProvider
+    return MultiProvider( 
       providers: [
         ChangeNotifierProvider(create: (_) => AIChatProvider()),
-        // TransactionBloc:manages transaction-related state and events
+
+        // Blocs
         BlocProvider<TransactionBloc>(
           create: (context) =>
               TransactionBloc(FirestoreService())..add(LoadTransactions()),
@@ -60,7 +62,8 @@ class FinoraApp extends StatelessWidget {
           create: (context) =>
               AuthBloc(FirebaseAuth.instance)..add(AppStarted()),
         ),
-        // Dependency Injection for various services
+
+        // Services
         Provider<AIService>(create: (_) => AIService()),
         Provider<SpeechService>(create: (_) => SpeechService()),
         Provider<NotificationService>(create: (_) => NotificationService()),
