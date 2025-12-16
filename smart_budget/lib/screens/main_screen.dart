@@ -1,100 +1,11 @@
 // lib/screens/main_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import '../features/transaction/transaction_bloc.dart';
-import '../features/transaction/transaction_state.dart';
-import '../models/transaction_model.dart'; // For type casting
 import 'dashboard.dart';
 import 'charts.dart';
+import 'history.dart'; // Now using the real history file
 import 'ai_assistant.dart';
 import 'add_transaction.dart';
-import '/widgets/import_statement_widget.dart'; // The widget for file upload
-
-// -----------------------------------------------------------------------------------
-
-// HistoryPage is now a StatelessWidget that listens to TransactionBloc for data
-class HistoryPage extends StatelessWidget {
-  // CRITICAL FIX: Removed the unnecessary local transactions list.
-  // Data will be streamed via BlocBuilder.
-  const HistoryPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    // Listen to the TransactionBloc state changes
-    return BlocBuilder<TransactionBloc, TransactionState>(
-      builder: (context, state) {
-        if (state is TransactionLoading) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (state is TransactionLoaded) {
-          final transactions = state.transactions;
-
-          if (transactions.isEmpty) {
-            // UI for empty state
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.history, size: 64, color: Colors.grey[300]),
-                  const SizedBox(height: 10),
-                  const Text(
-                      'There is no transaction history yet.\nYou can upload a statement from the top right.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey)),
-                ],
-              ),
-            );
-          }
-
-          // Display the transaction list using data from Firebase via BLoC
-          return ListView.builder(
-            itemCount: transactions.length,
-            itemBuilder: (context, index) {
-              final tx = transactions[index]; // tx is now a TransactionModel
-              final isExpense = !tx.isIncome; // Expense if not Income
-
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                child: ListTile(
-                  // Icon for Income/Expense
-                  leading: CircleAvatar(
-                    backgroundColor:
-                        isExpense ? Colors.red[50] : Colors.green[50],
-                    child: Icon(
-                      isExpense ? Icons.arrow_downward : Icons.arrow_upward,
-                      color: isExpense ? Colors.red : Colors.green,
-                      size: 20,
-                    ),
-                  ),
-                  // Use the 'title' property from the TransactionModel
-                  title: Text(tx.title),
-                  // Display only the date part
-                  subtitle: Text(tx.date.toString().split(' ')[0]),
-                  trailing: Text(
-                    // Format amount to 2 decimal places
-                    "${tx.amount.toStringAsFixed(2)} TL",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: isExpense ? Colors.red : Colors.green,
-                    ),
-                  ),
-                  // TODO: Implement onTap for editing transaction (e.g., using AddTransactionPage)
-                ),
-              );
-            },
-          );
-        }
-
-        // Default state (Error or Initial)
-        return const Center(child: Text('Start adding transactions!'));
-      },
-    );
-  }
-}
-
-// -----------------------------------------------------------------------------------
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -106,8 +17,13 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  // 🛑 REMOVED: Local list _importedTransactions and the callback method _handleLoadedTransactions
-  // are no longer needed, as data flows directly to Firebase via BLoC.
+  // Use the real classes here
+  final List<Widget> _pages = const [
+    DashboardPage(),
+    ChartsPage(),
+    HistoryScreen(), // Changed from HistoryPage to HistoryScreen (match class name in history.dart)
+    AIAssistantPage(),
+  ];
 
   void _onItemTapped(int index) {
     setState(() {
@@ -116,7 +32,6 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _openAddTransactionScreen() {
-    // Navigate to the screen for adding/editing transactions
     Navigator.of(context).push(
       MaterialPageRoute(builder: (ctx) => const AddTransactionPage()),
     );
@@ -124,61 +39,108 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Pages list, dynamically accessing the TransactionBloc for the History tab
-    final List<Widget> pages = [
-      const DashboardPage(),
-      const ChartsPage(),
-      // CRITICAL FIX: Wrap HistoryPage with BlocProvider.value
-      // to ensure it can access the existing TransactionBloc from the main tree.
-      BlocProvider.value(
-        value: context.read<TransactionBloc>(),
-        child: const HistoryPage(),
-      ),
-      const AIAssistantPage(),
-    ];
-
     final List<String> titles = [
-      'Finora Dashboard',
-      'Financial Charts',
-      'Transaction History',
-      'AI Assistant'
+      'Finora',
+      'Analytics',
+      'History',
+      'Assistant'
     ];
 
     return Scaffold(
+      backgroundColor: Colors.grey[100],
+      // Using a simpler AppBar or no AppBar for some screens can look cleaner
+      // but keeping it for consistency
       appBar: AppBar(
-        title: Text(titles[_selectedIndex]),
+        backgroundColor: Colors.white,
+        title: Text(
+          titles[_selectedIndex],
+          style: const TextStyle(
+            color: Colors.black87,
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
         elevation: 0,
-        actions: [
-          // CRITICAL FIX: Removed the conflicting 'onDataLoaded' parameter.
-          // ImportStatementWidget now sends data directly to BLoC.
-          const ImportStatementWidget(),
-          const SizedBox(width: 10),
-
-          // TODO: Add Logout Button here (if not already done)
-        ],
+        centerTitle: true,
       ),
-      body: pages[_selectedIndex],
 
-      // Floating Action Button for adding new transaction
-      floatingActionButton: FloatingActionButton(
-        onPressed: _openAddTransactionScreen,
-        child: const Icon(Icons.add),
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 250),
+        transitionBuilder: (child, animation) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        child: _pages[_selectedIndex],
       ),
+
+      floatingActionButton: Container(
+        height: 60,
+        width: 60,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          gradient: const LinearGradient(
+            colors: [Color(0xFF6C63FF), Color(0xFF5B4DBC)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF6C63FF).withOpacity(0.4),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
+            )
+          ],
+        ),
+        child: FloatingActionButton(
+          onPressed: _openAddTransactionScreen,
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: const Icon(Icons.add, size: 30, color: Colors.white),
+        ),
+      ),
+
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
-      // Bottom Navigation Bar
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Dashboard'),
-          BottomNavigationBarItem(icon: Icon(Icons.pie_chart), label: 'Charts'),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
-          BottomNavigationBarItem(icon: Icon(Icons.psychology), label: 'AI'),
-        ],
-        currentIndex: _selectedIndex,
-        selectedItemColor: Theme.of(context).primaryColor,
-        unselectedItemColor: Colors.grey,
-        onTap: _onItemTapped,
-        type: BottomNavigationBarType.fixed,
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: Colors.black12, width: 0.5)),
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _selectedIndex,
+          selectedItemColor: const Color(0xFF6C63FF),
+          unselectedItemColor: Colors.grey,
+          backgroundColor: Colors.white,
+          type: BottomNavigationBarType.fixed,
+          elevation: 0,
+          onTap: _onItemTapped,
+          showSelectedLabels: false, // Modern cleaner look
+          showUnselectedLabels: false,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard_outlined), 
+              activeIcon: Icon(Icons.dashboard),
+              label: "Home"
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.pie_chart_outline),
+              activeIcon: Icon(Icons.pie_chart), 
+              label: "Charts"
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.history), 
+              activeIcon: Icon(Icons.history_edu), // Fun visual change
+              label: "History"
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.auto_awesome_outlined), 
+              activeIcon: Icon(Icons.auto_awesome),
+              label: "AI"
+            ),
+          ],
+        ),
       ),
     );
   }
