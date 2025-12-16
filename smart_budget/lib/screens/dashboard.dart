@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart'; 
 import '../features/transaction/transaction_bloc.dart';
 import '../features/transaction/transaction_state.dart';
@@ -22,52 +23,172 @@ class DashboardPage extends StatelessWidget {
     );
   }
 
-  // --- UPDATED: Real File Picker Logic ---
-  void _handleStatementUpload(BuildContext context) async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'xls', 'xlsx', 'csv'],
+  // --- NEW: Handle Import Logic ---
+  Future<void> _handleImport(BuildContext context, FileTypeOption type) async {
+    // 1. Close the bottom sheet selection
+    Navigator.pop(context);
+
+    // 2. Show loading indicator
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Processing file... Please wait.")),
     );
 
-    if (result != null) {
-      final file = result.files.single;
-      
-      // Show loading
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Processing file...")),
-        );
+    try {
+      // 3. Call your Parser Service
+      final parser = StatementParserService();
+      // The parser handles the file picking internally now
+      final List<Map<String, dynamic>> rawData =
+          await parser.pickAndParseFile(type);
+
+      if (rawData.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+             const SnackBar(content: Text("No transactions found or cancelled.")),
+          );
+        }
+        return;
       }
 
-      try {
-        // 1. Parse the file
-        final parser = StatementParserService();
-        final newTransactions = await parser.parseFile(file);
+      // 4. Convert & Save to Firestore
+      final firestoreService = context.read<FirestoreService>();
+      int count = 0;
 
-        // 2. Save to Firestore
-        final firestoreService = context.read<FirestoreService>();
-        for (var tx in newTransactions) {
-          await firestoreService.addTransaction(tx);
+      for (var data in rawData) {
+        // Safe conversion of data
+        double amount = (data['amount'] is num) 
+            ? (data['amount'] as num).toDouble() 
+            : 0.0;
+        
+        String title = data['title'] ?? 'Unknown';
+        String dateStr = data['date'] ?? '';
+        bool isIncome = data['type'] == 'Income';
+
+        // Attempt to parse date (assuming dd/MM/yyyy or yyyy-MM-dd)
+        DateTime date;
+        try {
+          // You might need to adjust this format based on your bank
+          if (dateStr.contains('/')) {
+             // Try standard EU format
+             List<String> parts = dateStr.split('/');
+             if (parts.length == 3) {
+                // assume dd/MM/yyyy
+                date = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+             } else {
+               date = DateTime.now();
+             }
+          } else {
+             date = DateTime.tryParse(dateStr) ?? DateTime.now();
+          }
+        } catch (e) {
+          date = DateTime.now();
         }
 
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("Success! Added ${newTransactions.length} transactions."),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
-          );
-        }
+        // Create Model
+        final tx = TransactionModel(
+          amount: amount,
+          category: 'Imported', // Default category for imports
+          note: title,
+          date: date,
+          isIncome: isIncome,
+        );
+
+        // Save
+        await firestoreService.addTransaction(tx);
+        count++;
+      }
+
+      // 5. Success Message
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Successfully imported $count transactions!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error importing: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
 
+  // --- NEW: Show Format Selection Dialog ---
+  void _showImportOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          height: 280,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Select File Format",
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 20),
+              
+              _buildImportOption(
+                ctx, 
+                icon: Icons.table_chart, 
+                label: "Excel (XLSX)", 
+                color: Colors.green,
+                onTap: () => _handleImport(context, FileTypeOption.excel),
+              ),
+              
+              _buildImportOption(
+                ctx, 
+                icon: Icons.description, 
+                label: "CSV File", 
+                color: Colors.blue,
+                onTap: () => _handleImport(context, FileTypeOption.csv),
+              ),
+              
+              _buildImportOption(
+                ctx, 
+                icon: Icons.picture_as_pdf, 
+                label: "PDF Statement", 
+                color: Colors.red,
+                onTap: () => _handleImport(context, FileTypeOption.pdf),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildImportOption(BuildContext context, {
+    required IconData icon, 
+    required String label, 
+    required Color color,
+    required VoidCallback onTap
+  }) {
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, color: color),
+      ),
+      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+      onTap: onTap,
+    );
+  }
+  
   Map<String, double> _calculateSummary(List<TransactionModel> transactions) {
     double totalIncome = 0;
     double totalExpense = 0;
@@ -261,7 +382,7 @@ class DashboardPage extends StatelessWidget {
               style: TextStyle(fontSize: 14, color: Colors.grey),
             ),
             Text(
-              "Ahsen Durmaz",
+              "Finora User <3",
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w900,
