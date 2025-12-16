@@ -6,153 +6,97 @@ import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import 'package:excel/excel.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'dart:io';
+import '../models/transaction_model.dart';
 
 // File option enum (Shared with ImportStatementWidget)
 enum FileTypeOption { csv, excel, pdf }
 
 class StatementParserService {
-  // Main method: Picks the file, reads content as bytes, and delegates parsing.
-  Future<List<Map<String, dynamic>>> pickAndParseFile(
-      FileTypeOption type) async {
-    List<String> allowedExtensions = [];
-
-    switch (type) {
-      case FileTypeOption.csv:
-        allowedExtensions = ['csv'];
-        break;
-      case FileTypeOption.excel:
-        allowedExtensions = ['xlsx', 'xls'];
-        break;
-      case FileTypeOption.pdf:
-        allowedExtensions = ['pdf'];
-        break;
-    }
-
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: allowedExtensions,
-      // CRITICAL: Ensure 'withData: true' for web compatibility (reading bytes)
-      withData: true,
-    );
-
-    if (result != null && result.files.isNotEmpty) {
-      final pickedFile = result.files.single;
-      final fileBytes = pickedFile.bytes;
-
-      if (fileBytes == null) {
-        throw Exception(
-            "File content could not be read (Bytes are null). Please try a different file.");
-      }
-
-      // Delegate the parsing based on the selected file type
-      if (type == FileTypeOption.csv) {
-        return await _parseCSV(fileBytes);
-      } else if (type == FileTypeOption.excel) {
-        return await _parseExcel(fileBytes);
-      } else {
-        return await _parsePDF(fileBytes);
-      }
-    }
-    return [];
-  }
-
-// --- 1. CSV PARSING ---
-  Future<List<Map<String, dynamic>>> _parseCSV(Uint8List bytes) async {
-    try {
-      // Convert bytes to text (Platform-independent reading)
-      String fileContent = utf8.decode(bytes);
-
-      String delimiter = _detectDelimiter(fileContent);
-      print("Detected delimiter: '$delimiter'"); // Print detected delimiter
-
-      List<List<dynamic>> fields = CsvToListConverter(
-        fieldDelimiter: delimiter,
-        eol: '\n',
-      ).convert(fileContent);
-
-      List<Map<String, dynamic>> transactions = [];
-
-      // Start from 1 to skip the header row
-      for (var i = 1; i < fields.length; i++) {
-        var row = fields[i];
-        if (row.length < 3) continue; // Skip if row is too short
-        try {
-          // Default columns assumed: [0] Date | [1] Description | [2] Amount
-          String amountRaw = row[2].toString();
-
-          // Clean the amount string for European/Turkish format (',' as decimal)
-          String cleanAmount = amountRaw
-              .replaceAll('TL', '')
-              .replaceAll('TRY', '')
-              .replaceAll(' ', '')
-              .replaceAll('.', '') // Remove thousands separator dot
-              .replaceAll(',', '.') // Replace comma decimal with dot decimal
-              .trim();
-
-          double amount = double.tryParse(cleanAmount) ?? 0.0;
-          String type = amount < 0 ? 'Expense' : 'Income';
-
-          transactions.add({
-            'date': row[0].toString(),
-            'title': row[1].toString(),
-            'amount': amount.abs(), // Use absolute value for amount field
-            'type': type,
-          });
-        } catch (e) {
-          print("Exception occurred while reading row $i: $e");
-          continue;
-        }
-      }
-      return transactions;
-    } catch (e) {
-      print("Failed to read CSV $e");
-      return [];
-    }
-  }
-
-  // Helper function: Finds the most likely field delimiter
-  String _detectDelimiter(String content) {
-    if (content.isEmpty) return ';';
-    String firstLine = content.split('\n').first;
-    int commaCount = firstLine.split(',').length - 1;
-    int semiCount = firstLine.split(';').length - 1;
-    // Assume semicolon if count is greater or equal (common in non-US CSVs)
-    if (semiCount >= commaCount) {
-      return ';';
+  
+  /// Main function to determine file type and parse accordingly
+  Future<List<TransactionModel>> parseFile(PlatformFile file) async {
+    final extension = file.extension?.toLowerCase();
+    
+    if (extension == 'csv') {
+      return _parseCSV(file.path!);
+    } else if (extension == 'xlsx' || extension == 'xls') {
+      return _parseExcel(file.path!);
     } else {
-      return ',';
+      throw Exception("Unsupported file format. Please use CSV or Excel.");
     }
   }
 
-// --- 2. EXCEL PARSING ---
-  Future<List<Map<String, dynamic>>> _parseExcel(Uint8List bytes) async {
-    // Decode Excel file from bytes
+  // --- CSV PARSER ---
+  Future<List<TransactionModel>> _parseCSV(String path) async {
+    final input = File(path).openRead();
+    final fields = await input
+        .transform(utf8.decoder)
+        .transform(const CsvToListConverter())
+        .toList();
+
+    List<TransactionModel> transactions = [];
+
+    // Skip header row (index 0) and start from 1
+    for (var i = 1; i < fields.length; i++) {
+      final row = fields[i];
+      
+      // ADJUST THESE INDEXES based on your bank's CSV format!
+      // Example: Date (0), Description (1), Amount (2)
+      try {
+        final dateStr = row[0].toString(); 
+        final description = row[1].toString();
+        final amountStr = row[2].toString();
+
+        // Basic clean up of amount string (remove currency symbols etc)
+        double amount = double.tryParse(amountStr.replaceAll(RegExp(r'[^0-9.-]'), '')) ?? 0.0;
+        bool isIncome = amount > 0;
+
+        transactions.add(TransactionModel(
+          amount: amount.abs(),
+          category: "Imported", // Default category
+          note: description,
+          date: DateTime.now(), // You might want to parse dateStr here
+          isIncome: isIncome,
+        ));
+      } catch (e) {
+        print("Error parsing row $i: $e");
+      }
+    }
+    return transactions;
+  }
+
+  // --- EXCEL PARSER ---
+  Future<List<TransactionModel>> _parseExcel(String path) async {
+    var bytes = File(path).readAsBytesSync();
     var excel = Excel.decodeBytes(bytes);
-    List<Map<String, dynamic>> transactions = [];
+    List<TransactionModel> transactions = [];
 
-    for (var table in excel.tables.keys) {
-      var sheet = excel.tables[table];
-      if (sheet == null) continue;
+    // Assume data is in the first sheet
+    final sheetName = excel.tables.keys.first;
+    final table = excel.tables[sheetName];
 
-      // Skip the first row (headers)
-      for (int i = 1; i < sheet.rows.length; i++) {
-        var row = sheet.rows[i];
+    if (table != null) {
+      // Skip header row (rowIndex 0)
+      for (var i = 1; i < table.maxRows; i++) {
+        final row = table.rows[i];
+        
+        // ADJUST INDEXES: col 0 = Date, col 1 = Desc, col 2 = Amount
         try {
-          // Default columns assumed: [0] Date, [1] Description, [2] Amount
-          var dateVal = row[0]?.value;
-          var descVal = row[1]?.value;
-          var amountVal = row[2]?.value;
+          final descCellValue = row[1]?.value.toString() ?? "Unknown";
+          final amountCellValue = row[2]?.value.toString() ?? "0";
 
-          if (dateVal != null && amountVal != null) {
-            transactions.add({
-              'date': dateVal.toString(),
-              'title': descVal.toString(),
-              'amount': double.tryParse(amountVal.toString()) ?? 0.0,
-              'type': 'Unknown' // Type determination needs refinement for Excel
-            });
-          }
+          double amount = double.tryParse(amountCellValue.replaceAll(RegExp(r'[^0-9.-]'), '')) ?? 0.0;
+          
+          transactions.add(TransactionModel(
+            amount: amount.abs(),
+            category: "Imported",
+            note: descCellValue,
+            date: DateTime.now(),
+            isIncome: amount > 0,
+          ));
         } catch (e) {
-          print("Excel exception: $e");
+          print("Error parsing excel row $i: $e");
         }
       }
     }
@@ -208,3 +152,4 @@ class StatementParserService {
     }
   }
 }
+
