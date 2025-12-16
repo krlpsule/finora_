@@ -12,11 +12,47 @@ import '../features/transaction/transaction_event.dart';
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
 
-
   void _openAddTransactionScreen(BuildContext context,
       {TransactionModel? txToEdit}) {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (ctx) => AddTransactionPage(editTx: txToEdit)),
+    );
+  }
+
+  // PLACEHOLDER: Connect your Bank Statement / PDF Logic here
+  void _handleStatementUpload(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          height: 200,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Upload Bank Statement",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: const Icon(Icons.upload_file, color: Colors.indigo),
+                title: const Text("Select PDF / Excel File"),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  // TODO: Call your service to pick and parse file
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("File picker logic goes here")),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -31,11 +67,11 @@ class DashboardPage extends StatelessWidget {
         totalExpense += tx.amount;
       }
     }
-    double balance = totalIncome - totalExpense;
+
     return {
       'income': totalIncome,
       'expense': totalExpense,
-      'balance': balance,
+      'balance': totalIncome - totalExpense,
     };
   }
 
@@ -43,137 +79,312 @@ class DashboardPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final transactionBloc = context.read<TransactionBloc>();
 
-    
-    return BlocBuilder<TransactionBloc, TransactionState>(
-      builder: (context, state) {
-        if (state is TransactionLoading || state is TransactionInitial) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Color(0xFFF3F4F6),
+            Color(0xFFFFFFFF),
+          ],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
+      child: BlocBuilder<TransactionBloc, TransactionState>(
+        builder: (context, state) {
+          if (state is TransactionLoading || state is TransactionInitial) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-        if (state is TransactionError) {
-          return Center(
-              child: Text('Error: ${state.message}',
-                  style: const TextStyle(color: Colors.red)));
-        }
-
-        if (state is TransactionLoaded) {
-          final transactions = state.transactions;
-          final summary = _calculateSummary(transactions); 
-
-          return CustomScrollView(
-            slivers: [
-           
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: _buildSummaryCard(context, summary),
-                ),
+          if (state is TransactionError) {
+            return Center(
+              child: Text(
+                'Error: ${state.message}',
+                style: const TextStyle(color: Colors.red),
               ),
+            );
+          }
 
-              
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding:
-                      EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                  child: Text(
-                    'Recent Transactions',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          if (state is TransactionLoaded) {
+            final transactions = state.transactions;
+            final summary = _calculateSummary(transactions);
+
+            return CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+                    child: _buildHeader(),
                   ),
                 ),
-              ),
 
-             
-              transactions.isEmpty
-                  ? const SliverFillRemaining(
-                      child: Center(
-                        child: Text('No transactions recorded yet.'),
-                      ),
-                    )
-                  : SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (ctx, index) {
-                          final tx = transactions[index];
-                          return TransactionTile(
-                            tx: tx,
-                            
-                            onEdit: () => _openAddTransactionScreen(context,
-                                txToEdit: tx),
-                            onDelete: () {
-                             
-                              transactionBloc
-                                  .add(DeleteTransactionEvent(tx.id!));
-                            },
-                          );
-                        },
-                        childCount: transactions.length,
-                      ),
+                // SUMMARY CARD
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: _buildSummaryCard(context, summary),
+                  ),
+                ),
+
+                // QUICK ACTIONS (Restored functionality visually)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Quick Actions",
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600, color: Colors.grey),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildActionButton(
+                                context,
+                                label: "Add Manual",
+                                icon: Icons.add_circle_outline,
+                                color: Colors.indigo,
+                                onTap: () => _openAddTransactionScreen(context),
+                              ),
+                            ),
+                            const SizedBox(width: 15),
+                            Expanded(
+                              child: _buildActionButton(
+                                context,
+                                label: "Upload Statement", // Ekstre Yükle
+                                icon: Icons.file_upload_outlined,
+                                color: Colors.orange.shade800,
+                                onTap: () => _handleStatementUpload(context),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-            ],
-          );
-        }
+                  ),
+                ),
 
-        return const Center(child: Text('Waiting for data...'));
-      },
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(20, 25, 20, 10),
+                    child: Text(
+                      'Recent Transactions',
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+
+                // TRANSACTION LIST
+                transactions.isEmpty
+                    ? const SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(
+                          child: Text(
+                            'No transactions recorded yet.',
+                            style:
+                                TextStyle(fontSize: 16, color: Colors.black54),
+                          ),
+                        ),
+                      )
+                    : SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (ctx, index) {
+                            final tx = transactions[index];
+
+                            return Container(
+                              margin: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.04),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: TransactionTile(
+                                tx: tx,
+                                onEdit: () => _openAddTransactionScreen(
+                                  context,
+                                  txToEdit: tx,
+                                ),
+                                onDelete: () {
+                                  transactionBloc
+                                      .add(DeleteTransactionEvent(tx.id!));
+                                },
+                              ),
+                            );
+                          },
+                          childCount: transactions.length,
+                        ),
+                      ),
+                const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
+              ],
+            );
+          }
+
+          return const Center(child: Text('Waiting for data...'));
+        },
+      ),
     );
   }
 
-  
-  Widget _buildSummaryCard(BuildContext context, Map<String, double> summary) {
-    const double radius = 12.0;
-
-    return Card(
-      elevation: 4,
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(radius),
-          
-          gradient: LinearGradient(
-            colors: [
-              Theme.of(context).primaryColor,
-              Theme.of(context).primaryColor.withOpacity(0.8)
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: Column(
+  // ---------------- HEADER ----------------
+  Widget _buildHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Current Balance',
-              style: TextStyle(color: Colors.white70, fontSize: 16),
+          children: const [
+            Text(
+              "Welcome Back,",
+              style: TextStyle(fontSize: 14, color: Colors.grey),
             ),
             Text(
-              '₺${summary['balance']!.toStringAsFixed(2)}',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
+              "Ahsen Durmaz",
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF2D3142),
               ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildSummaryItem(
-                  icon: Icons.arrow_downward,
-                  label: 'Expense',
-                  amount: summary['expense']!,
-                  color: Colors.red.shade100,
-                ),
-                _buildSummaryItem(
-                  icon: Icons.arrow_upward,
-                  label: 'Income',
-                  amount: summary['income']!,
-                  color: Colors.green.shade100,
-                ),
-              ],
             ),
           ],
         ),
+        Container(
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0xFF6C63FF), width: 2),
+          ),
+          child: const CircleAvatar(
+            radius: 20,
+            backgroundImage: NetworkImage("https://i.pravatar.cc/150?img=32"), // Placeholder
+          ),
+        )
+      ],
+    );
+  }
+
+  // ---------------- ACTION BUTTON ----------------
+  Widget _buildActionButton(BuildContext context,
+      {required String label,
+      required IconData icon,
+      required Color color,
+      required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+          border: Border.all(color: color.withOpacity(0.1)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 28),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------- SUMMARY CARD ----------------
+  Widget _buildSummaryCard(BuildContext context, Map<String, double> summary) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF5B4DBC), // Darker indigo
+            Color(0xFF6C63FF), // Lighter purple
+          ],
+          begin: Alignment.bottomLeft,
+          end: Alignment.topRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF6C63FF).withOpacity(0.4),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Total Balance',
+                style: TextStyle(color: Colors.white70, fontSize: 15),
+              ),
+              Icon(Icons.account_balance_wallet, color: Colors.white.withOpacity(0.5)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '₺${summary['balance']!.toStringAsFixed(2)}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 34,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1,
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          Row(
+            children: [
+              Expanded(
+                child: _buildSummaryItem(
+                  icon: Icons.arrow_upward_rounded,
+                  label: 'Income',
+                  amount: summary['income']!,
+                  iconColor: const Color(0xFF4ADE80), // Soft Green
+                  bgColor: const Color(0xFF4ADE80).withOpacity(0.2),
+                ),
+              ),
+              const SizedBox(width: 15),
+              Expanded(
+                child: _buildSummaryItem(
+                  icon: Icons.arrow_downward_rounded,
+                  label: 'Expense',
+                  amount: summary['expense']!,
+                  iconColor: const Color(0xFFF87171), // Soft Red
+                  bgColor: const Color(0xFFF87171).withOpacity(0.2),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -182,30 +393,45 @@ class DashboardPage extends StatelessWidget {
     required IconData icon,
     required String label,
     required double amount,
-    required Color color,
+    required Color iconColor,
+    required Color bgColor,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, color: Colors.white, size: 16),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: const TextStyle(color: Colors.white70, fontSize: 14),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: bgColor,
+              shape: BoxShape.circle,
             ),
-          ],
-        ),
-        Text(
-          '₺${amount.toStringAsFixed(2)}',
-          style: TextStyle(
-            color: color,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+            child: Icon(icon, color: iconColor, size: 16),
           ),
-        ),
-      ],
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 11),
+              ),
+              Text(
+                '₺${amount.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
