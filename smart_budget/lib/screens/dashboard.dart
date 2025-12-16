@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:file_picker/file_picker.dart'; // REQUIRED: Add 'file_picker' to pubspec.yaml
 import '../features/transaction/transaction_bloc.dart';
 import '../features/transaction/transaction_state.dart';
 import '../widgets/transaction_tile.dart';
@@ -19,41 +20,42 @@ class DashboardPage extends StatelessWidget {
     );
   }
 
-  // PLACEHOLDER: Connect your Bank Statement / PDF Logic here
-  void _handleStatementUpload(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          height: 200,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Upload Bank Statement",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 20),
-              ListTile(
-                leading: const Icon(Icons.upload_file, color: Colors.indigo),
-                title: const Text("Select PDF / Excel File"),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  // TODO: Call your service to pick and parse file
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("File picker logic goes here")),
-                  );
-                },
-              ),
-            ],
+  // --- UPDATED: Real File Picker Logic ---
+  void _handleStatementUpload(BuildContext context) async {
+    // 1. Pick the file
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'xls', 'xlsx', 'csv'],
+    );
+
+    if (result != null) {
+      // 2. Get file details
+      final fileName = result.files.single.name;
+      // final filePath = result.files.single.path; // Use this to send to your parser
+
+      // 3. Show Success Message
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 10),
+                Expanded(child: Text("Statement Selected: $fileName")),
+              ],
+            ),
+            backgroundColor: Colors.green.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
-      },
-    );
+      }
+
+      // TODO: Pass 'result.files.single.path' to your Statement Parsing Service here
+      
+    } else {
+      // User canceled the picker
+    }
   }
 
   Map<String, double> _calculateSummary(List<TransactionModel> transactions) {
@@ -126,7 +128,7 @@ class DashboardPage extends StatelessWidget {
                   ),
                 ),
 
-                // QUICK ACTIONS (Restored functionality visually)
+                // QUICK ACTIONS (Now functional!)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -154,7 +156,7 @@ class DashboardPage extends StatelessWidget {
                             Expanded(
                               child: _buildActionButton(
                                 context,
-                                label: "Upload Statement", // Ekstre Yükle
+                                label: "Upload Statement", 
                                 icon: Icons.file_upload_outlined,
                                 color: Colors.orange.shade800,
                                 onTap: () => _handleStatementUpload(context),
