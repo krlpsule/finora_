@@ -9,94 +9,119 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'dart:io';
 import '../models/transaction_model.dart';
 
-// File option enum (Shared with ImportStatementWidget)
-enum FileTypeOption { csv, excel, pdf }
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
+import 'package:csv/csv.dart';
+import 'package:excel/excel.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart'; // Ensure this is in pubspec.yaml if using PDF
+// If you don't use syncfusion, remove the PDF logic or use a different package
+
+// Enum to match the one used in Dashboard
+enum FileTypeOption { excel, csv, pdf }
 
 class StatementParserService {
   
-  /// Main function to determine file type and parse accordingly
-  Future<List<TransactionModel>> parseFile(PlatformFile file) async {
-    final extension = file.extension?.toLowerCase();
-    
-    if (extension == 'csv') {
-      return _parseCSV(file.path!);
-    } else if (extension == 'xlsx' || extension == 'xls') {
-      return _parseExcel(file.path!);
-    } else {
-      throw Exception("Unsupported file format. Please use CSV or Excel.");
+  /// Opens the file picker for the specific type and returns parsed data
+  Future<List<Map<String, dynamic>>> pickAndParseFile(FileTypeOption type) async {
+    List<String> allowedExtensions = [];
+    switch (type) {
+      case FileTypeOption.excel:
+        allowedExtensions = ['xlsx', 'xls'];
+        break;
+      case FileTypeOption.csv:
+        allowedExtensions = ['csv'];
+        break;
+      case FileTypeOption.pdf:
+        allowedExtensions = ['pdf'];
+        break;
     }
+
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: allowedExtensions,
+    );
+
+    if (result != null && result.files.single.path != null) {
+      final path = result.files.single.path!;
+      
+      if (type == FileTypeOption.csv) {
+        return _parseCSV(path);
+      } else if (type == FileTypeOption.excel) {
+        return _parseExcel(path);
+      } else if (type == FileTypeOption.pdf) {
+        // PDF parsing is complex and structure-dependent. 
+        // Returning empty or mock data for now unless you have specific PDF logic.
+        return []; 
+      }
+    }
+    return [];
   }
 
   // --- CSV PARSER ---
-  Future<List<TransactionModel>> _parseCSV(String path) async {
+  Future<List<Map<String, dynamic>>> _parseCSV(String path) async {
     final input = File(path).openRead();
     final fields = await input
-        .transform(utf8.decoder)
+        .transform(SystemEncoding().decoder) // Uses system encoding to handle special chars
         .transform(const CsvToListConverter())
         .toList();
 
-    List<TransactionModel> transactions = [];
+    List<Map<String, dynamic>> transactions = [];
 
-    // Skip header row (index 0) and start from 1
+    // Loop starts at 1 to skip headers
     for (var i = 1; i < fields.length; i++) {
-      final row = fields[i];
-      
-      // ADJUST THESE INDEXES based on your bank's CSV format!
-      // Example: Date (0), Description (1), Amount (2)
       try {
-        final dateStr = row[0].toString(); 
-        final description = row[1].toString();
-        final amountStr = row[2].toString();
+        final row = fields[i];
+        // ADJUST INDICES: 0=Date, 1=Description, 2=Amount (Example)
+        String dateStr = row[0].toString();
+        String desc = row[1].toString();
+        String amountStr = row[2].toString();
 
-        // Basic clean up of amount string (remove currency symbols etc)
         double amount = double.tryParse(amountStr.replaceAll(RegExp(r'[^0-9.-]'), '')) ?? 0.0;
-        bool isIncome = amount > 0;
+        String type = amount >= 0 ? 'Income' : 'Expense';
 
-        transactions.add(TransactionModel(
-          amount: amount.abs(),
-          category: "Imported", // Default category
-          note: description,
-          date: DateTime.now(), // You might want to parse dateStr here
-          isIncome: isIncome,
-        ));
+        transactions.add({
+          'date': dateStr,
+          'title': desc,
+          'amount': amount.abs(),
+          'type': type,
+        });
       } catch (e) {
-        print("Error parsing row $i: $e");
+        print("Error parsing CSV row $i: $e");
       }
     }
     return transactions;
   }
 
   // --- EXCEL PARSER ---
-  Future<List<TransactionModel>> _parseExcel(String path) async {
+  Future<List<Map<String, dynamic>>> _parseExcel(String path) async {
     var bytes = File(path).readAsBytesSync();
     var excel = Excel.decodeBytes(bytes);
-    List<TransactionModel> transactions = [];
+    List<Map<String, dynamic>> transactions = [];
 
-    // Assume data is in the first sheet
     final sheetName = excel.tables.keys.first;
     final table = excel.tables[sheetName];
 
     if (table != null) {
-      // Skip header row (rowIndex 0)
+      // Loop starts at 1 to skip headers
       for (var i = 1; i < table.maxRows; i++) {
-        final row = table.rows[i];
-        
-        // ADJUST INDEXES: col 0 = Date, col 1 = Desc, col 2 = Amount
         try {
-          final descCellValue = row[1]?.value.toString() ?? "Unknown";
-          final amountCellValue = row[2]?.value.toString() ?? "0";
+          final row = table.rows[i];
+          // ADJUST INDICES: 0=Date, 1=Desc, 2=Amount
+          String dateStr = row[0]?.value.toString() ?? "";
+          String desc = row[1]?.value.toString() ?? "Unknown";
+          String amountStr = row[2]?.value.toString() ?? "0";
 
-          double amount = double.tryParse(amountCellValue.replaceAll(RegExp(r'[^0-9.-]'), '')) ?? 0.0;
-          
-          transactions.add(TransactionModel(
-            amount: amount.abs(),
-            category: "Imported",
-            note: descCellValue,
-            date: DateTime.now(),
-            isIncome: amount > 0,
-          ));
+          double amount = double.tryParse(amountStr.replaceAll(RegExp(r'[^0-9.-]'), '')) ?? 0.0;
+          String type = amount >= 0 ? 'Income' : 'Expense';
+
+          transactions.add({
+            'date': dateStr,
+            'title': desc,
+            'amount': amount.abs(),
+            'type': type,
+          });
         } catch (e) {
-          print("Error parsing excel row $i: $e");
+          print("Error parsing Excel row $i: $e");
         }
       }
     }
@@ -152,4 +177,5 @@ class StatementParserService {
     }
   }
 }
+
 
