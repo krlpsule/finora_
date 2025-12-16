@@ -2,13 +2,15 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:file_picker/file_picker.dart'; // REQUIRED: Add 'file_picker' to pubspec.yaml
+import 'package:file_picker/file_picker.dart'; 
 import '../features/transaction/transaction_bloc.dart';
 import '../features/transaction/transaction_state.dart';
 import '../widgets/transaction_tile.dart';
 import '../models/transaction_model.dart';
 import 'add_transaction.dart';
 import '../features/transaction/transaction_event.dart';
+import '../services/statement_parser_service.dart'; 
+import '../services/firestore_service.dart'; // To save them
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -22,39 +24,47 @@ class DashboardPage extends StatelessWidget {
 
   // --- UPDATED: Real File Picker Logic ---
   void _handleStatementUpload(BuildContext context) async {
-    // 1. Pick the file
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'xls', 'xlsx', 'csv'],
     );
 
     if (result != null) {
-      // 2. Get file details
-      final fileName = result.files.single.name;
-      // final filePath = result.files.single.path; // Use this to send to your parser
-
-      // 3. Show Success Message
+      final file = result.files.single;
+      
+      // Show loading
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.white),
-                const SizedBox(width: 10),
-                Expanded(child: Text("Statement Selected: $fileName")),
-              ],
-            ),
-            backgroundColor: Colors.green.shade600,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
+          const SnackBar(content: Text("Processing file...")),
         );
       }
 
-      // TODO: Pass 'result.files.single.path' to your Statement Parsing Service here
-      
-    } else {
-      // User canceled the picker
+      try {
+        // 1. Parse the file
+        final parser = StatementParserService();
+        final newTransactions = await parser.parseFile(file);
+
+        // 2. Save to Firestore
+        final firestoreService = context.read<FirestoreService>();
+        for (var tx in newTransactions) {
+          await firestoreService.addTransaction(tx);
+        }
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Success! Added ${newTransactions.length} transactions."),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+          );
+        }
+      }
     }
   }
 
