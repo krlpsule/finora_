@@ -160,7 +160,7 @@ class StatementParserService {
             'date': date,
             'title': desc.trim(),
             'amount': amount,
-            'type': 'Expense' // Type determination needs refinement
+           'type': amount < 0 ? 'Expense' : 'Income', // Type determination needs refinement
           });
         }
       }

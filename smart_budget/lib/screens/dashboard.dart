@@ -82,6 +82,7 @@ class DashboardPage extends StatelessWidget {
 
         // Create Transaction Object
         final tx = TransactionModel(
+          title:title,
           amount: amount,
           category: 'Imported', // You can change this later to be smarter
           note: title,
