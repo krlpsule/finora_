@@ -1,99 +1,65 @@
-// lib/features/transaction/transaction_bloc.dart
-
-import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../models/transaction_model.dart';
 import '../../services/firestore_service.dart';
 import 'transaction_event.dart';
 import 'transaction_state.dart';
-import '../../models/transaction_model.dart';
 
 class TransactionBloc extends Bloc<TransactionEvent, TransactionState> {
   final FirestoreService _firestoreService;
-  StreamSubscription? _transactionsSubscription; 
-  TransactionBloc(this._firestoreService) : super(TransactionInitial()) {
+
+  TransactionBloc(this._firestoreService) : super(TransactionLoading()) {
     
-    on<LoadTransactions>(_onLoadTransactions);
-    on<TransactionsUpdated>(_onTransactionsUpdated);
-    on<AddTransactionEvent>(_onAddTransaction);
-    on<DeleteTransactionEvent>(_onDeleteTransaction);
-    on<UpdateTransactionEvent>(_onUpdateTransaction);
-  }
+    // 1. Load Transactions (The Fix for "emit was called after handler completed")
+    on<LoadTransactions>((event, emit) async {
+      // Set state to loading initially
+      emit(TransactionLoading());
 
-  
-  void _onLoadTransactions(
-      LoadTransactions event, Emitter<TransactionState> emit) {
-    _transactionsSubscription?.cancel(); 
-    emit(TransactionLoading());
+      // 🚨 CRITICAL FIX: We use 'emit.forEach' instead of standard .listen().
+      // This keeps the event handler alive while listening to the Firestore Stream.
+      // If we don't use this, the handler closes immediately, causing a crash when data arrives later.
+      await emit.forEach<List<TransactionModel>>(
+        _firestoreService.streamTransactions(), // Listening to the real-time stream
+        onData: (transactions) {
+          if (transactions.isEmpty) {
+            return TransactionEmpty(); // Show empty state if no data
+          }
+          return TransactionLoaded(transactions); // Show list if data exists
+        },
+        onError: (error, stackTrace) {
+          // Handle any Firestore errors (e.g., permission denied, network issues)
+          return TransactionError("Failed to load transactions: $error");
+        },
+      );
+    });
 
-    
-    _transactionsSubscription = _firestoreService.streamTransactions().listen(
-      (transactions) {
-        add(TransactionsUpdated(transactions));
-      },
-      onError: (error) {
-        emit(TransactionError('Veriler yüklenirken bir hata oluştu: $error'));
-      },
-    );
-  }
-
-
-  void _onTransactionsUpdated(
-      TransactionsUpdated event, Emitter<TransactionState> emit) {
-    emit(TransactionLoaded(event.transactions));
-  }
-
-  
-  void _onAddTransaction(
-      AddTransactionEvent event, Emitter<TransactionState> emit) async {
-    try {
-      
-      await _firestoreService.addTransaction(event.transaction);
-    } catch (e) {
-      
-      final currentState = state;
-      if (currentState is TransactionLoaded) {
-        emit(TransactionError('İşlem eklenirken hata oluştu: $e'));
-        emit(currentState);
-      } else {
-        emit(TransactionError('İşlem eklenirken hata oluştu: $e'));
+    // 2. Add Transaction
+    on<AddTransactionEvent>((event, emit) async {
+      try {
+        await _firestoreService.addTransaction(event.transaction);
+        // Note: We do NOT need to emit a new state here manually.
+        // Because we are listening to the stream above, Firestore will automatically
+        // notify the 'LoadTransactions' handler when a new item is added.
+      } catch (e) {
+        emit(TransactionError("Failed to add transaction: $e"));
       }
-    }
-  }
+    });
 
-  void _onDeleteTransaction(
-      DeleteTransactionEvent event, Emitter<TransactionState> emit) async {
-    try {
-      await _firestoreService.deleteTransaction(event.transactionId);
-    } catch (e) {
-      final currentState = state;
-      if (currentState is TransactionLoaded) {
-        emit(TransactionError('İşlem silinirken hata oluştu: $e'));
-        emit(currentState);
-      } else {
-        emit(TransactionError('İşlem silinirken hata oluştu: $e'));
+    // 3. Update Transaction
+    on<UpdateTransactionEvent>((event, emit) async {
+      try {
+        await _firestoreService.updateTransaction(event.transaction);
+      } catch (e) {
+        emit(TransactionError("Failed to update transaction: $e"));
       }
-    }
-  }
+    });
 
-  void _onUpdateTransaction(
-      UpdateTransactionEvent event, Emitter<TransactionState> emit) async {
-    try {
-      await _firestoreService.updateTransaction(event.transaction);
-    } catch (e) {
-      final currentState = state;
-      if (currentState is TransactionLoaded) {
-        emit(TransactionError('İşlem güncellenirken hata oluştu: $e'));
-        emit(currentState);
-      } else {
-        emit(TransactionError('İşlem güncellenirken hata oluştu: $e'));
+    // 4. Delete Transaction
+    on<DeleteTransactionEvent>((event, emit) async {
+      try {
+        await _firestoreService.deleteTransaction(event.id);
+      } catch (e) {
+        emit(TransactionError("Failed to delete transaction: $e"));
       }
-    }
-  }
-
-  
-  @override
-  Future<void> close() {
-    _transactionsSubscription?.cancel();
-    return super.close();
+    });
   }
 }

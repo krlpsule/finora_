@@ -3,15 +3,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
-import 'package:file_picker/file_picker.dart'; 
+import 'package:file_picker/file_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // 🚨 NEW IMPORT: Needed to get user info
+
 import '../features/transaction/transaction_bloc.dart';
 import '../features/transaction/transaction_state.dart';
 import '../widgets/transaction_tile.dart';
 import '../models/transaction_model.dart';
 import 'add_transaction.dart';
 import '../features/transaction/transaction_event.dart';
-import '../services/statement_parser_service.dart'; 
-import '../services/firestore_service.dart'; 
+import '../services/statement_parser_service.dart';
+import '../services/firestore_service.dart';
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -42,7 +44,8 @@ class DashboardPage extends StatelessWidget {
       if (rawData.isEmpty) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-             const SnackBar(content: Text("No transactions found or cancelled.")),
+            const SnackBar(
+                content: Text("No transactions found or cancelled.")),
           );
         }
         return;
@@ -54,10 +57,9 @@ class DashboardPage extends StatelessWidget {
 
       for (var data in rawData) {
         // Safe data conversion
-        double amount = (data['amount'] is num) 
-            ? (data['amount'] as num).toDouble() 
-            : 0.0;
-        
+        double amount =
+            (data['amount'] is num) ? (data['amount'] as num).toDouble() : 0.0;
+
         String title = data['title'] ?? 'Unknown';
         String dateStr = data['date'] ?? '';
         bool isIncome = data['type'] == 'Income'; // Simple check
@@ -66,15 +68,16 @@ class DashboardPage extends StatelessWidget {
         DateTime date;
         try {
           if (dateStr.contains('/')) {
-             List<String> parts = dateStr.split('/');
-             if (parts.length == 3) {
-                // assume dd/MM/yyyy
-                date = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
-             } else {
-               date = DateTime.now();
-             }
+            List<String> parts = dateStr.split('/');
+            if (parts.length == 3) {
+              // assume dd/MM/yyyy
+              date = DateTime(int.parse(parts[2]), int.parse(parts[1]),
+                  int.parse(parts[0]));
+            } else {
+              date = DateTime.now();
+            }
           } else {
-             date = DateTime.tryParse(dateStr) ?? DateTime.now();
+            date = DateTime.tryParse(dateStr) ?? DateTime.now();
           }
         } catch (e) {
           date = DateTime.now();
@@ -82,7 +85,8 @@ class DashboardPage extends StatelessWidget {
 
         // Create Transaction Object
         final tx = TransactionModel(
-          title:title,
+          userId: '', // Will be set in FirestoreService based on current user
+          title: title,
           amount: amount,
           category: 'Imported', // You can change this later to be smarter
           note: title,
@@ -135,27 +139,24 @@ class DashboardPage extends StatelessWidget {
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 20),
-              
               _buildImportOption(
-                ctx, 
-                icon: Icons.table_chart, 
-                label: "Excel (XLSX)", 
+                ctx,
+                icon: Icons.table_chart,
+                label: "Excel (XLSX)",
                 color: Colors.green,
                 onTap: () => _handleImport(context, FileTypeOption.excel),
               ),
-              
               _buildImportOption(
-                ctx, 
-                icon: Icons.description, 
-                label: "CSV File", 
+                ctx,
+                icon: Icons.description,
+                label: "CSV File",
                 color: Colors.blue,
                 onTap: () => _handleImport(context, FileTypeOption.csv),
               ),
-              
               _buildImportOption(
-                ctx, 
-                icon: Icons.picture_as_pdf, 
-                label: "PDF Statement", 
+                ctx,
+                icon: Icons.picture_as_pdf,
+                label: "PDF Statement",
                 color: Colors.red,
                 onTap: () => _handleImport(context, FileTypeOption.pdf),
               ),
@@ -166,12 +167,11 @@ class DashboardPage extends StatelessWidget {
     );
   }
 
-  Widget _buildImportOption(BuildContext context, {
-    required IconData icon, 
-    required String label, 
-    required Color color,
-    required VoidCallback onTap
-  }) {
+  Widget _buildImportOption(BuildContext context,
+      {required IconData icon,
+      required String label,
+      required Color color,
+      required VoidCallback onTap}) {
     return ListTile(
       leading: Container(
         padding: const EdgeInsets.all(8),
@@ -182,7 +182,8 @@ class DashboardPage extends StatelessWidget {
         child: Icon(icon, color: color),
       ),
       title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+      trailing:
+          const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
       onTap: onTap,
     );
   }
@@ -267,7 +268,9 @@ class DashboardPage extends StatelessWidget {
                         const Text(
                           "Quick Actions",
                           style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w600, color: Colors.grey),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey),
                         ),
                         const SizedBox(height: 10),
                         Row(
@@ -285,7 +288,7 @@ class DashboardPage extends StatelessWidget {
                             Expanded(
                               child: _buildActionButton(
                                 context,
-                                label: "Upload Statement", 
+                                label: "Upload Statement",
                                 icon: Icons.file_upload_outlined,
                                 color: Colors.orange.shade800,
                                 // --- UPDATED: Calls the new dialog ---
@@ -370,15 +373,44 @@ class DashboardPage extends StatelessWidget {
 
   // --- REUSABLE WIDGETS ---
 
+  // 🚨 UPDATED METHOD: Now fetches the user's name dynamically
   Widget _buildHeader() {
+    // 1. Get the current logged-in user from Firebase Auth
+    final user = FirebaseAuth.instance.currentUser;
+
+    // 2. Default display name
+    String displayName = "User";
+
+    // 3. Logic to determine the name
+    if (user != null) {
+      if (user.displayName != null && user.displayName!.isNotEmpty) {
+        // Use the name if they signed up with one
+        displayName = user.displayName!;
+      } else if (user.email != null) {
+        // Fallback: Parse name from email (e.g., "emine@gmail.com" -> "Emine")
+        String emailName = user.email!.split('@')[0];
+        if (emailName.isNotEmpty) {
+          displayName = emailName[0].toUpperCase() + emailName.substring(1);
+        }
+      }
+    }
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text("Welcome Back,", style: TextStyle(fontSize: 14, color: Colors.grey)),
-            Text("Ahsen Durmaz", style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF2D3142))),
+          children: [
+            const Text("Welcome Back,",
+                style: TextStyle(fontSize: 14, color: Colors.grey)),
+            // 4. Display the dynamic name here
+            Text(
+              displayName,
+              style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF2D3142)),
+            ),
           ],
         ),
         Container(
@@ -389,6 +421,7 @@ class DashboardPage extends StatelessWidget {
           ),
           child: const CircleAvatar(
             radius: 20,
+            // You can also use user?.photoURL here if available
             backgroundImage: NetworkImage("https://i.pravatar.cc/150?img=32"),
           ),
         )
@@ -460,8 +493,10 @@ class DashboardPage extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Total Balance', style: TextStyle(color: Colors.white70, fontSize: 15)),
-              Icon(Icons.account_balance_wallet, color: Colors.white.withOpacity(0.5)),
+              const Text('Total Balance',
+                  style: TextStyle(color: Colors.white70, fontSize: 15)),
+              Icon(Icons.account_balance_wallet,
+                  color: Colors.white.withOpacity(0.5)),
             ],
           ),
           const SizedBox(height: 8),
@@ -530,10 +565,15 @@ class DashboardPage extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 11)),
+              Text(label,
+                  style: TextStyle(
+                      color: Colors.white.withOpacity(0.8), fontSize: 11)),
               Text(
                 '₺${amount.toStringAsFixed(0)}',
-                style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600),
               ),
             ],
           ),

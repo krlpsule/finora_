@@ -18,6 +18,7 @@ import 'services/ai_service.dart';
 import 'features/transaction/transaction_bloc.dart';
 import 'features/transaction/transaction_event.dart';
 import 'firebase_options.dart';
+import 'screens/welcome_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -75,7 +76,7 @@ class FinoraApp extends StatelessWidget {
         theme: ThemeData(
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF6C63FF),
+            seedColor: const Color(0xFF0D1B2A),
             brightness: Brightness.light,
             secondary: Colors.teal,
           ),
@@ -96,8 +97,8 @@ class FinoraApp extends StatelessWidget {
               // If logged in, redirect to the main screen (MainScreen containing Dashboard)
               return const MainScreen();
             } else if (state is Unauthenticated) {
-              // If no login has been made, redirect to the Login page
-              return const LoginScreen();
+              // If no login has been made, redirect to the Welcome page
+              return const WelcomeScreen();
             }
             // Show the loading screen at startup or during loading
             return const Scaffold(

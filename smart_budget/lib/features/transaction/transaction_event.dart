@@ -1,35 +1,45 @@
 // lib/features/transaction/transaction_event.dart
 
+import 'package:equatable/equatable.dart';
 import '../../models/transaction_model.dart';
-// Eğer pubspec.yaml'a equatable eklediyseniz, bunu da import edin:
-// import 'package:equatable/equatable.dart';
 
-// Tüm Event'ler bu sınıfı miras alır. Equatable kullanıyorsanız, Equatable'ı miras alsın.
-abstract class TransactionEvent {}
+abstract class TransactionEvent extends Equatable {
+  const TransactionEvent();
 
-// 1. İşlemleri başlat ve stream'i dinlemeye başla
+  @override
+  List<Object> get props => [];
+}
+
+// 1. Load Event (Start listening to stream)
 class LoadTransactions extends TransactionEvent {}
 
-// 2. Yeni bir işlem ekle
+// 2. Add Event
 class AddTransactionEvent extends TransactionEvent {
   final TransactionModel transaction;
-  AddTransactionEvent(this.transaction);
+
+  const AddTransactionEvent(this.transaction);
+
+  @override
+  List<Object> get props => [transaction];
 }
 
-// 3. İşlemi sil
-class DeleteTransactionEvent extends TransactionEvent {
-  final String transactionId;
-  DeleteTransactionEvent(this.transactionId);
-}
-
-// 4. İşlemi güncelle
+// 3. Update Event
 class UpdateTransactionEvent extends TransactionEvent {
   final TransactionModel transaction;
-  UpdateTransactionEvent(this.transaction);
+
+  const UpdateTransactionEvent(this.transaction);
+
+  @override
+  List<Object> get props => [transaction];
 }
 
-// 5. Stream'den yeni veri geldiğinde BLoC'u bilgilendirir (Dahili Event)
-class TransactionsUpdated extends TransactionEvent {
-  final List<TransactionModel> transactions;
-  TransactionsUpdated(this.transactions);
+// 4. 🚨 GÜNCELLENEN KISIM: Delete Event
+// 'id' alanı zorunlu hale getirildi.
+class DeleteTransactionEvent extends TransactionEvent {
+  final String id; // Hata veren kısım burasıydı (id eksikti)
+
+  const DeleteTransactionEvent(this.id);
+
+  @override
+  List<Object> get props => [id];
 }
