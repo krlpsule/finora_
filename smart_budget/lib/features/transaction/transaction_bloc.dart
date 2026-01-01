@@ -1,3 +1,5 @@
+// lib/features/transaction/transaction_bloc.dart
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../models/transaction_model.dart';
 import '../../services/firestore_service.dart';
@@ -9,24 +11,20 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState> {
 
   TransactionBloc(this._firestoreService) : super(TransactionLoading()) {
     
-    // 1. Load Transactions (The Fix for "emit was called after handler completed")
+    // 1. Load Transactions (DÜZELTİLDİ)
     on<LoadTransactions>((event, emit) async {
-      // Set state to loading initially
       emit(TransactionLoading());
 
-      // 🚨 CRITICAL FIX: We use 'emit.forEach' instead of standard .listen().
-      // This keeps the event handler alive while listening to the Firestore Stream.
-      // If we don't use this, the handler closes immediately, causing a crash when data arrives later.
       await emit.forEach<List<TransactionModel>>(
-        _firestoreService.streamTransactions(), // Listening to the real-time stream
+        _firestoreService.streamTransactions(),
         onData: (transactions) {
-          if (transactions.isEmpty) {
-            return TransactionEmpty(); // Show empty state if no data
-          }
-          return TransactionLoaded(transactions); // Show list if data exists
+          // 🚨 DEĞİŞİKLİK BURADA:
+          // Eskiden liste boşsa 'TransactionEmpty' gönderiyorduk, UI bunu tanımıyordu.
+          // Artık her zaman 'TransactionLoaded' gönderiyoruz. 
+          // Liste boşsa bile UI bunu kendi içinde halledecek.
+          return TransactionLoaded(transactions); 
         },
         onError: (error, stackTrace) {
-          // Handle any Firestore errors (e.g., permission denied, network issues)
           return TransactionError("Failed to load transactions: $error");
         },
       );
@@ -36,9 +34,6 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState> {
     on<AddTransactionEvent>((event, emit) async {
       try {
         await _firestoreService.addTransaction(event.transaction);
-        // Note: We do NOT need to emit a new state here manually.
-        // Because we are listening to the stream above, Firestore will automatically
-        // notify the 'LoadTransactions' handler when a new item is added.
       } catch (e) {
         emit(TransactionError("Failed to add transaction: $e"));
       }

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // 🚨 NEW IMPORT: Needed to get user info
+import 'package:firebase_auth/firebase_auth.dart'; // 🚨 Required for user info
 
 import '../features/transaction/transaction_bloc.dart';
 import '../features/transaction/transaction_state.dart';
@@ -18,6 +18,7 @@ import '../services/firestore_service.dart';
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
 
+  // --- NAVIGATION: Open Add/Edit Screen ---
   void _openAddTransactionScreen(BuildContext context,
       {TransactionModel? txToEdit}) {
     Navigator.of(context).push(
@@ -25,7 +26,7 @@ class DashboardPage extends StatelessWidget {
     );
   }
 
-  // --- LOGIC: Handle File Import ---
+  // --- LOGIC: Handle File Import (Excel/CSV/PDF) ---
   Future<void> _handleImport(BuildContext context, FileTypeOption type) async {
     // 1. Close the bottom sheet
     Navigator.pop(context);
@@ -36,11 +37,12 @@ class DashboardPage extends StatelessWidget {
     );
 
     try {
-      // 3. Use your Service to pick and parse
+      // 3. Use Service to pick and parse file
       final parser = StatementParserService();
       final List<Map<String, dynamic>> rawData =
           await parser.pickAndParseFile(type);
 
+      // Check if data is empty or user cancelled
       if (rawData.isEmpty) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -56,13 +58,13 @@ class DashboardPage extends StatelessWidget {
       int count = 0;
 
       for (var data in rawData) {
-        // Safe data conversion
+        // Safe data conversion (Dynamic to Double)
         double amount =
             (data['amount'] is num) ? (data['amount'] as num).toDouble() : 0.0;
 
         String title = data['title'] ?? 'Unknown';
         String dateStr = data['date'] ?? '';
-        bool isIncome = data['type'] == 'Income'; // Simple check
+        bool isIncome = data['type'] == 'Income';
 
         // Attempt to parse date (handle dd/MM/yyyy vs yyyy-MM-dd)
         DateTime date;
@@ -70,13 +72,14 @@ class DashboardPage extends StatelessWidget {
           if (dateStr.contains('/')) {
             List<String> parts = dateStr.split('/');
             if (parts.length == 3) {
-              // assume dd/MM/yyyy
+              // Format: dd/MM/yyyy
               date = DateTime(int.parse(parts[2]), int.parse(parts[1]),
                   int.parse(parts[0]));
             } else {
               date = DateTime.now();
             }
           } else {
+            // Standard format
             date = DateTime.tryParse(dateStr) ?? DateTime.now();
           }
         } catch (e) {
@@ -85,10 +88,10 @@ class DashboardPage extends StatelessWidget {
 
         // Create Transaction Object
         final tx = TransactionModel(
-          userId: '', // Will be set in FirestoreService based on current user
+          userId: '', // Will be set automatically in FirestoreService
           title: title,
           amount: amount,
-          category: 'Imported', // You can change this later to be smarter
+          category: 'Imported',
           note: title,
           date: date,
           isIncome: isIncome,
@@ -120,7 +123,7 @@ class DashboardPage extends StatelessWidget {
     }
   }
 
-  // --- UI: Format Selection Dialog ---
+  // --- UI: Format Selection Dialog (Bottom Sheet) ---
   void _showImportOptions(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -167,6 +170,7 @@ class DashboardPage extends StatelessWidget {
     );
   }
 
+  // --- HELPER: Import Option Tile ---
   Widget _buildImportOption(BuildContext context,
       {required IconData icon,
       required String label,
@@ -188,6 +192,7 @@ class DashboardPage extends StatelessWidget {
     );
   }
 
+  // --- LOGIC: Calculate Totals ---
   Map<String, double> _calculateSummary(List<TransactionModel> transactions) {
     double totalIncome = 0;
     double totalExpense = 0;
@@ -207,6 +212,7 @@ class DashboardPage extends StatelessWidget {
     };
   }
 
+  // --- MAIN BUILD METHOD ---
   @override
   Widget build(BuildContext context) {
     final transactionBloc = context.read<TransactionBloc>();
@@ -224,10 +230,12 @@ class DashboardPage extends StatelessWidget {
       ),
       child: BlocBuilder<TransactionBloc, TransactionState>(
         builder: (context, state) {
+          // 1. Loading State
           if (state is TransactionLoading || state is TransactionInitial) {
             return const Center(child: CircularProgressIndicator());
           }
 
+          // 2. Error State
           if (state is TransactionError) {
             return Center(
               child: Text(
@@ -237,12 +245,14 @@ class DashboardPage extends StatelessWidget {
             );
           }
 
+          // 3. Loaded State (Shows data or empty list message)
           if (state is TransactionLoaded) {
             final transactions = state.transactions;
             final summary = _calculateSummary(transactions);
 
             return CustomScrollView(
               slivers: [
+                // Header (Welcome & User Initial)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
@@ -250,7 +260,7 @@ class DashboardPage extends StatelessWidget {
                   ),
                 ),
 
-                // SUMMARY CARD
+                // Summary Card (Balance)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.all(20),
@@ -258,7 +268,7 @@ class DashboardPage extends StatelessWidget {
                   ),
                 ),
 
-                // QUICK ACTIONS
+                // Quick Actions (Buttons)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -291,7 +301,6 @@ class DashboardPage extends StatelessWidget {
                                 label: "Upload Statement",
                                 icon: Icons.file_upload_outlined,
                                 color: Colors.orange.shade800,
-                                // --- UPDATED: Calls the new dialog ---
                                 onTap: () => _showImportOptions(context),
                               ),
                             ),
@@ -302,6 +311,7 @@ class DashboardPage extends StatelessWidget {
                   ),
                 ),
 
+                // Section Title
                 const SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsets.fromLTRB(20, 25, 20, 10),
@@ -313,7 +323,7 @@ class DashboardPage extends StatelessWidget {
                   ),
                 ),
 
-                // TRANSACTION LIST
+                // Transaction List
                 transactions.isEmpty
                     ? const SliverFillRemaining(
                         hasScrollBody: false,
@@ -365,6 +375,7 @@ class DashboardPage extends StatelessWidget {
             );
           }
 
+          // Fallback
           return const Center(child: Text('Waiting for data...'));
         },
       ),
@@ -373,7 +384,7 @@ class DashboardPage extends StatelessWidget {
 
   // --- REUSABLE WIDGETS ---
 
-  // 🚨 UPDATED METHOD: Now fetches the user's name dynamically
+  // 🚨 UPDATED: Header with User Initials (No Image)
   Widget _buildHeader() {
     // 1. Get the current logged-in user from Firebase Auth
     final user = FirebaseAuth.instance.currentUser;
@@ -381,10 +392,9 @@ class DashboardPage extends StatelessWidget {
     // 2. Default display name
     String displayName = "User";
 
-    // 3. Logic to determine the name
+    // 3. Logic to determine the name to show
     if (user != null) {
       if (user.displayName != null && user.displayName!.isNotEmpty) {
-        // Use the name if they signed up with one
         displayName = user.displayName!;
       } else if (user.email != null) {
         // Fallback: Parse name from email (e.g., "emine@gmail.com" -> "Emine")
@@ -403,7 +413,6 @@ class DashboardPage extends StatelessWidget {
           children: [
             const Text("Welcome Back,",
                 style: TextStyle(fontSize: 14, color: Colors.grey)),
-            // 4. Display the dynamic name here
             Text(
               displayName,
               style: const TextStyle(
@@ -419,10 +428,18 @@ class DashboardPage extends StatelessWidget {
             shape: BoxShape.circle,
             border: Border.all(color: const Color(0xFF6C63FF), width: 2),
           ),
-          child: const CircleAvatar(
+          // 🚨 CHANGE: Replaced Image with Text Initials
+          child: CircleAvatar(
             radius: 20,
-            // You can also use user?.photoURL here if available
-            backgroundImage: NetworkImage("https://i.pravatar.cc/150?img=32"),
+            backgroundColor: const Color(0xFFE0E7FF), // Light purple background
+            child: Text(
+              displayName.isNotEmpty ? displayName[0].toUpperCase() : "U",
+              style: const TextStyle(
+                color: Color(0xFF6C63FF), // Dark purple text
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
           ),
         )
       ],
