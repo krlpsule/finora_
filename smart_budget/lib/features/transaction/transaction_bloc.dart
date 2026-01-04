@@ -10,7 +10,6 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState> {
   final FirestoreService _firestoreService;
 
   TransactionBloc(this._firestoreService) : super(TransactionLoading()) {
-    
     // 1. Load Transactions (DÜZELTİLDİ)
     on<LoadTransactions>((event, emit) async {
       emit(TransactionLoading());
@@ -18,13 +17,14 @@ class TransactionBloc extends Bloc<TransactionEvent, TransactionState> {
       await emit.forEach<List<TransactionModel>>(
         _firestoreService.streamTransactions(),
         onData: (transactions) {
-          // 🚨 DEĞİŞİKLİK BURADA:
-          // Eskiden liste boşsa 'TransactionEmpty' gönderiyorduk, UI bunu tanımıyordu.
-          // Artık her zaman 'TransactionLoaded' gönderiyoruz. 
-          // Liste boşsa bile UI bunu kendi içinde halledecek.
-          return TransactionLoaded(transactions); 
+          return TransactionLoaded(transactions);
         },
         onError: (error, stackTrace) {
+          if (error.toString().contains("permission-denied") ||
+              error.toString().contains("insufficient permissions")) {
+            return TransactionLoaded([]); // Sessizce boş liste döndür
+          }
+
           return TransactionError("Failed to load transactions: $error");
         },
       );

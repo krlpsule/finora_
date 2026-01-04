@@ -14,6 +14,8 @@ import 'add_transaction.dart';
 import '../features/transaction/transaction_event.dart';
 import '../services/statement_parser_service.dart';
 import '../services/firestore_service.dart';
+import '../features/auth/auth_bloc.dart'; // 🚨 Required for logout event
+import '../features/auth/auth_event.dart'; // 🚨 Required for logout event
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -256,7 +258,7 @@ class DashboardPage extends StatelessWidget {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
-                    child: _buildHeader(),
+                    child: _buildHeader(context),
                   ),
                 ),
 
@@ -385,19 +387,15 @@ class DashboardPage extends StatelessWidget {
   // --- REUSABLE WIDGETS ---
 
   // 🚨 UPDATED: Header with User Initials (No Image)
-  Widget _buildHeader() {
-    // 1. Get the current logged-in user from Firebase Auth
+  // 🚨 UPDATED: Header with Logout using YOUR existing event
+  Widget _buildHeader(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-
-    // 2. Default display name
     String displayName = "User";
 
-    // 3. Logic to determine the name to show
     if (user != null) {
       if (user.displayName != null && user.displayName!.isNotEmpty) {
         displayName = user.displayName!;
       } else if (user.email != null) {
-        // Fallback: Parse name from email (e.g., "emine@gmail.com" -> "Emine")
         String emailName = user.email!.split('@')[0];
         if (emailName.isNotEmpty) {
           displayName = emailName[0].toUpperCase() + emailName.substring(1);
@@ -422,25 +420,59 @@ class DashboardPage extends StatelessWidget {
             ),
           ],
         ),
-        Container(
-          padding: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: const Color(0xFF6C63FF), width: 2),
-          ),
-          // 🚨 CHANGE: Replaced Image with Text Initials
-          child: CircleAvatar(
-            radius: 20,
-            backgroundColor: const Color(0xFFE0E7FF), // Light purple background
-            child: Text(
-              displayName.isNotEmpty ? displayName[0].toUpperCase() : "U",
-              style: const TextStyle(
-                color: Color(0xFF6C63FF), // Dark purple text
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
+        Row(
+          children: [
+            // Logout Button
+            IconButton(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text("Log Out"),
+                    content: const Text("Are you sure you want to log out?"),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text("Cancel"),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+
+                          context.read<AuthBloc>().add(LogoutRequested());
+                        },
+                        child: const Text("Log Out",
+                            style: TextStyle(color: Colors.red)),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              icon: const Icon(Icons.logout, color: Colors.redAccent),
+            ),
+
+            const SizedBox(width: 8),
+
+            Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFF6C63FF), width: 2),
+              ),
+              child: CircleAvatar(
+                radius: 20,
+                backgroundColor: const Color(0xFFE0E7FF),
+                child: Text(
+                  displayName.isNotEmpty ? displayName[0].toUpperCase() : "U",
+                  style: const TextStyle(
+                    color: Color(0xFF6C63FF),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
               ),
             ),
-          ),
+          ],
         )
       ],
     );
