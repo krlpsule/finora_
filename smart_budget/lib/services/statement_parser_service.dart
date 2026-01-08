@@ -164,190 +164,75 @@ class StatementParserService {
 
   // --- PDF PARSER (Robust Line Merging Logic) ---
   Future<List<Map<String, dynamic>>> _parsePDF(Uint8List bytes) async {
-    try {
-      // 1. Load PDF and extract text
-      final PdfDocument document = PdfDocument(inputBytes: bytes);
-      String text = PdfTextExtractor(document).extractText();
-      document.dispose();
+  try {
+    final PdfDocument document = PdfDocument(inputBytes: bytes);
+    final PdfTextExtractor extractor = PdfTextExtractor(document);
+    String text = extractor.extractText();
+    document.dispose();
 
-      // 🚨 CRITICAL CHECK: Is the PDF an Image/Scan?
-      // If the extracted text is empty, it means the PDF is likely an image (scan).
-      // We return an empty list and print a warning. We do NOT generate fake data.
-      if (text.trim().isEmpty) {
-        print(
-            "--- WARNING: No text found in PDF. It might be an image/scan format. ---");
-        return [];
-      }
-
-      print("--- PDF LOG START (Raw Text) ---");
-      // print(text); // Uncomment to debug raw text output in console
-      print("--- PDF LOG END ---");
-
-      List<Map<String, dynamic>> transactions = [];
-      List<String> lines = text.split('\n');
-
-      // 2. Define Regex for Date
-      // Allows leading whitespace, supports DD.MM.YYYY or YYYY.MM.DD
-      RegExp dateRegex = RegExp(r'^\s*(\d{2}[/.-]\d{2}[/.-]\d{2,4})');
-
-      // 3. Define Regex for Amount
-      // Captures formats like "1.250,50" (TR) or "1,250.50" (US).
-      // Ignores trailing currency codes (TL, USD, etc.)
-      RegExp amountRegex =
-          RegExp(r'([+-]?\s*\d{1,3}(?:[.,]\d{3})*[.,]\d{2})\s*([A-Z]{2,3})?$');
-
-      String? currentDate;
-      String currentDesc = "";
-      String? currentAmountStr;
-
-      // 4. Line-by-Line Analysis
-      for (int i = 0; i < lines.length; i++) {
-        String line = lines[i].trim();
-        if (line.isEmpty) continue;
-
-        // CASE A: Line starts with a DATE -> New Transaction
-        if (dateRegex.hasMatch(line)) {
-          // Save previous transaction if exists
-          if (currentDate != null && currentAmountStr != null) {
-            _addTransactionToList(
-                transactions, currentDate, currentDesc, currentAmountStr);
-          }
-
-          // Start new transaction
-          var dateMatch = dateRegex.firstMatch(line);
-          currentDate = dateMatch!.group(1); // Extract date
-
-          // Get the rest of the line
-          String restOfLine = line.substring(dateMatch.end).trim();
-
-          // Look for amount in this line
-          var amountMatch = amountRegex.firstMatch(restOfLine);
-          if (amountMatch != null) {
-            currentAmountStr = amountMatch.group(1);
-            // Description is usually between Date and Amount
-            int amountIndex = restOfLine.lastIndexOf(currentAmountStr!);
-            if (amountIndex > 0) {
-              currentDesc = restOfLine.substring(0, amountIndex).trim();
-            } else {
-              currentDesc = "No Description";
-            }
-          } else {
-            // Amount not found in this line (might be on next line)
-            currentDesc = restOfLine;
-            currentAmountStr = null;
-          }
-        }
-        // CASE B: Line does NOT start with Date -> Detail/Continuation line
-        else {
-          if (currentDate != null) {
-            if (currentAmountStr == null) {
-              // If we haven't found the amount yet, look for it here
-              var amountMatch = amountRegex.firstMatch(line);
-              if (amountMatch != null) {
-                currentAmountStr = amountMatch.group(1);
-                String descPart =
-                    line.substring(0, line.indexOf(currentAmountStr!)).trim();
-                currentDesc += " $descPart";
-              } else {
-                currentDesc += " $line";
-              }
-            } else {
-              // If amount is already found, this is just extra description
-              currentDesc += " $line";
-            }
-          }
-        }
-      }
-
-      // Add the final transaction after loop ends
-      if (currentDate != null && currentAmountStr != null) {
-        _addTransactionToList(
-            transactions, currentDate, currentDesc, currentAmountStr);
-      }
-
-      return transactions;
-    } catch (e) {
-      print("PDF Parsing Failed: $e");
+    if (text.trim().isEmpty) {
+      print("--- WARNING: No text found in PDF. It might be an image/scan format. ---");
       return [];
     }
-  }
 
-  // --- HELPER METHOD (Smart Keyword Detection: TR + EN) ---
-  void _addTransactionToList(List<Map<String, dynamic>> list, String? date,
-      String desc, String? amountStr) {
-    if (date == null || amountStr == null) return;
+    List<Map<String, dynamic>> transactions = [];
+    List<String> lines = text.split('\n');
 
-    try {
-      // 1. Check for minus sign before cleaning
-      bool hasMinusSign = amountStr.contains('-') || amountStr.contains('–');
+    RegExp dateRegex = RegExp(r'^\s*(\d{2}[./-]\d{2}[./-]\d{2,4}|\d{4}[./-]\d{2}[./-]\d{2})');
+    RegExp amountRegex = RegExp(r'([+-]?\s*\d{1,3}(?:[.,]\d{3})*[.,]\d{2})');
 
-      String lowerDesc = desc.toLowerCase();
+    String? currentDate;
+    String currentDesc = "";
+    String? currentAmountStr;
 
-      // 2. Expense Keywords (Turkish + English)
-      bool isExpenseKeyword =
-          // Turkish
-          lowerDesc.contains('gider') ||
-              lowerDesc.contains('odeme') ||
-              lowerDesc.contains('ödeme') ||
-              lowerDesc.contains('alisveris') ||
-              lowerDesc.contains('alışveriş') ||
-              lowerDesc.contains('cekilen') ||
-              lowerDesc.contains('komisyon') ||
-              lowerDesc.contains('transfer') ||
-              lowerDesc.contains('eft') ||
-              lowerDesc.contains('havale') ||
-              lowerDesc.contains('fatura') ||
-              // English
-              lowerDesc.contains('payment') ||
-              lowerDesc.contains('expense') ||
-              lowerDesc.contains('purchase') ||
-              lowerDesc.contains('withdrawal') ||
-              lowerDesc.contains('fee') ||
-              lowerDesc.contains('charge') ||
-              lowerDesc.contains('bill') ||
-              lowerDesc.contains('invoice') ||
-              lowerDesc.contains('sent') ||
-              // Brands/Subscriptions
-              lowerDesc.contains('netflix') ||
-              lowerDesc.contains('spotify') ||
-              lowerDesc.contains('youtube') ||
-              lowerDesc.contains('amazon') ||
-              lowerDesc.contains('apple');
+    for (String rawLine in lines) {
+      String line = rawLine.trim();
+      if (line.isEmpty) continue;
 
-      // 3. Clean the Amount String
-      // Remove dots (thousand separator) and replace comma with dot (decimal)
-      String cleanAmount = amountStr.replaceAll('.', '').replaceAll(',', '.');
-      // Remove everything except numbers and dots
-      cleanAmount = cleanAmount.replaceAll(RegExp(r'[^0-9.]'), '');
+      if (dateRegex.hasMatch(line)) {
+        if (currentDate != null && currentAmountStr != null) {
+          _addTransactionToList(transactions, currentDate, currentDesc, currentAmountStr);
+        }
 
-      double amount = double.parse(cleanAmount);
+        var dateMatch = dateRegex.firstMatch(line);
+        currentDate = dateMatch!.group(1);
 
-      // 4. Determine Transaction Type
-      String type = 'Income'; // Default
+        String restOfLine = line.substring(dateMatch.end).trim();
+        var amountMatch = amountRegex.firstMatch(restOfLine);
 
-      if (hasMinusSign || isExpenseKeyword) {
-        type = 'Expense';
+        if (amountMatch != null) {
+          currentAmountStr = amountMatch.group(1);
+          int amountIndex = restOfLine.lastIndexOf(currentAmountStr!);
+          currentDesc = amountIndex > 0 ? restOfLine.substring(0, amountIndex).trim() : "No Description";
+        } else {
+          currentDesc = restOfLine;
+          currentAmountStr = null;
+        }
+      } else {
+        if (currentDate != null) {
+          if (currentAmountStr == null) {
+            var amountMatch = amountRegex.firstMatch(line);
+            if (amountMatch != null) {
+              currentAmountStr = amountMatch.group(1);
+              String descPart = line.substring(0, line.indexOf(currentAmountStr!)).trim();
+              currentDesc = (currentDesc + " " + descPart).trim();
+            } else {
+              currentDesc = (currentDesc + " " + line).trim();
+            }
+          } else {
+            currentDesc = (currentDesc + " " + line).trim();
+          }
+        }
       }
-
-      // Salary/Deposit keywords override Expense detection (Always Income)
-      if (lowerDesc.contains('maas') ||
-          lowerDesc.contains('maaş') ||
-          lowerDesc.contains('yatirilan') ||
-          lowerDesc.contains('refund') || // English
-          lowerDesc.contains('iade') || // Turkish
-          lowerDesc.contains('deposit')) {
-        // English
-        type = 'Income';
-      }
-
-      list.add({
-        'date': date,
-        'title': desc.trim(),
-        'amount': amount.abs(), // Store as absolute value
-        'type': type,
-      });
-    } catch (e) {
-      print("Error converting transaction ($amountStr): $e");
     }
+
+    if (currentDate != null && currentAmountStr != null) {
+      _addTransactionToList(transactions, currentDate, currentDesc.isEmpty ? "No Description" : currentDesc, currentAmountStr);
+    }
+
+    return transactions;
+  } catch (e) {
+    print("PDF Parsing Failed: $e");
+    return [];
   }
-}
+}}
