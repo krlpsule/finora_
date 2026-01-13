@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TransactionModel {
   String? id;
-  String userId; // 🚨 NEW: Stores the unique ID of the user who owns this transaction
+  String userId; 
   String title;
   double amount;
   String category;
@@ -14,7 +14,7 @@ class TransactionModel {
 
   TransactionModel({
     this.id,
-    required this.userId, // 🚨 NEW: Required in constructor
+    required this.userId,
     required this.title,
     required this.amount,
     required this.category,
@@ -26,7 +26,7 @@ class TransactionModel {
   // 1. Convert to Map for Firestore (Saving)
   Map<String, dynamic> toMap() {
     return {
-      'userId': userId, // 🚨 NEW: Save userId to database
+      'userId': userId,
       'title': title,
       'amount': amount,
       'category': category,
@@ -40,10 +40,10 @@ class TransactionModel {
   factory TransactionModel.fromDocument(String id, Map<String, dynamic> data) {
     return TransactionModel(
       id: id,
-      userId: data['userId'] ?? '', // 🚨 NEW: Read userId (default to empty string if missing)
-      title: data['title'] ?? 'Unknown Title',
-      amount: (data['amount'] as num).toDouble(),
-      category: data['category'] ?? 'Uncategorized',
+      userId: data['userId'] ?? '',
+      title: data['title'] ?? 'Bilinmeyen Başlık',
+      amount: (data['amount'] as num?)?.toDouble() ?? 0.0,
+      category: data['category'] ?? 'Genel',
       note: data['note'] ?? '',
       date: (data['date'] as Timestamp).toDate(),
       isIncome: data['isIncome'] ?? false,
@@ -51,19 +51,20 @@ class TransactionModel {
   }
 
   // 3. Factory Method for Statement Import (Parsing)
+  // DÜZELTME BURADA YAPILDI
   factory TransactionModel.fromMapForImport(Map<String, dynamic> map) {
-    // ⚠️ Date Conversion: Parse string dates like '15/12/2025'
+    // ⚠️ Tarih Çevirme İşlemi
     DateTime parsedDate;
     try {
       final dateString = map['date'].toString();
       final parts = dateString.split(RegExp(r'[/\.-]'));
       
-      // Assumes DD/MM/YYYY format
       if (parts.length >= 3) {
+        // Genellikle format GG/AA/YYYY şeklindedir
         parsedDate = DateTime(
-          int.parse(parts[2]), // Year
-          int.parse(parts[1]), // Month
-          int.parse(parts[0]), // Day
+          int.parse(parts[2]), // Yıl
+          int.parse(parts[1]), // Ay
+          int.parse(parts[0]), // Gün
         );
       } else {
         parsedDate = DateTime.now();
@@ -72,25 +73,34 @@ class TransactionModel {
       parsedDate = DateTime.now(); 
     }
 
-    final typeString = map['type'].toString().toLowerCase();
+    // ⚠️ Başlık (Title) Çevirme İşlemi (Sorunun Çözümü)
+    // map['title'] değerini güvenli bir şekilde String'e çeviriyoruz.
+    // Eğer 'title' boşsa veya null ise 'Imported Transaction' yazar.
+    String parsedTitle = map['title']?.toString() ?? '';
+    if (parsedTitle.trim().isEmpty) {
+      parsedTitle = 'Imported Transaction';
+    }
+
+    // Tür ve Kategori Belirleme
+    final typeString = map['type']?.toString().toLowerCase() ?? 'expense';
     final isIncome = typeString == 'income' || typeString == 'gelir'; 
+    
+    // Kategori varsayılan olarak 'Imported' kalır, ancak başlık (title) artık "Elif Cafe" olacaktır.
     final category = map['category'] as String? ?? 'Imported'; 
 
     return TransactionModel(
       id: null,
-      userId: '', // 🚨 NEW: Empty initially during import, populated later by FirestoreService
-      title: map['title'] as String? ?? 'Imported Transaction',
+      userId: '', // Bloc tarafında doldurulacak
+      title: parsedTitle, // Artık "Elif Cafe" gibi gerçek isim gelecek
       amount: (map['amount'] as num?)?.abs().toDouble() ?? 0.0,
       category: category, 
-      note: 'Imported via ' + typeString, 
+      note: 'Otomatik içe aktarıldı ($typeString)', 
       date: parsedDate,
       isIncome: isIncome,
     );
   }
 
-  // 4. 🚨 NEW: copyWith Method
-  // Essential for updating properties (like userId) of an immutable object instance.
-  // Useful when processing imported lists before saving to Firebase.
+  // 4. copyWith Method
   TransactionModel copyWith({
     String? id,
     String? userId,
